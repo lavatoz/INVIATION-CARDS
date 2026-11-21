@@ -577,3 +577,32 @@ export interface InitiateGiftResponse {
     statusUrl: string;
   };
 }
+
+// --- Private Guest Registration Types ---
+
+export type GuestSide = 'BRIDE' | 'GROOM';
+
+export interface GuestRegistration {
+  id: string;
+  fullName: string;
+  address?: string | null;
+  mobileNumber?: string | null;
+  side: GuestSide;
+  note?: string | null;
+  createdAt: string;
+}
+
+export interface GuestRegistrationSummary {
+  total: number;
+  brideCount: number;
+  groomCount: number;
+}
+
+export interface GuestRegistrationPayload {
+  fullName: string;
+  address?: string | null;
+  mobileNumber?: string | null;
+  side: GuestSide;
+  note?: string | null;
+}
+

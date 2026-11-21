@@ -68,6 +68,84 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
     message: string;
   } | null>(null);
 
+  // Private Guest Registration Form State
+  const [guestRegName, setGuestRegName] = useState<string>('');
+  const [guestRegAddress, setGuestRegAddress] = useState<string>('');
+  const [guestRegMobile, setGuestRegMobile] = useState<string>('');
+  const [guestRegSide, setGuestRegSide] = useState<'BRIDE' | 'GROOM' | ''>('');
+  const [guestRegNote, setGuestRegNote] = useState<string>('');
+  const [isSubmittingGuestReg, setIsSubmittingGuestReg] = useState<boolean>(false);
+  const [guestRegFeedback, setGuestRegFeedback] = useState<{
+    success: boolean;
+    message: string;
+  } | null>(null);
+  const [isGuestRegSubmitted, setIsGuestRegSubmitted] = useState<boolean>(false);
+
+  const handleGuestRegSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!guestRegName.trim()) {
+      setGuestRegFeedback({
+        success: false,
+        message: lang === 'ml' ? 'ദയവായി താങ്കളുടെ പേര് രേഖപ്പെടുത്തുക.' : 'Please enter your name.',
+      });
+      return;
+    }
+
+    if (!guestRegSide) {
+      setGuestRegFeedback({
+        success: false,
+        message:
+          lang === 'ml'
+            ? 'വരന്റെ ഭാഗമാണോ വധുവിന്റെ ഭാഗമാണോ എന്ന് തിരഞ്ഞെടുക്കുക.'
+            : "Please specify whether you are joining from Bride's side or Groom's side.",
+      });
+      return;
+    }
+
+    if (guestRegNote.length > 1000) {
+      setGuestRegFeedback({
+        success: false,
+        message: lang === 'ml' ? 'സന്ദേശം 1,000 അക്ഷരങ്ങളിൽ കവിയരുത്.' : 'Note cannot exceed 1,000 characters.',
+      });
+      return;
+    }
+
+    setIsSubmittingGuestReg(true);
+    setGuestRegFeedback(null);
+    try {
+      const res = await api.registerGuestPublic(slug, {
+        fullName: guestRegName.trim(),
+        address: guestRegAddress.trim() || null,
+        mobileNumber: guestRegMobile.trim() || null,
+        side: guestRegSide as 'BRIDE' | 'GROOM',
+        note: guestRegNote.trim() || null,
+      });
+
+      if (res.success) {
+        setIsGuestRegSubmitted(true);
+        setGuestRegFeedback({
+          success: true,
+          message:
+            lang === 'ml'
+              ? 'താങ്കളുടെ വിവരങ്ങൾ വിജയകരമായി രേഖപ്പെടുത്തി! സാന്നിധ്യത്തിനും ആശംസകൾക്കും നന്ദി.'
+              : 'Thank you! Your response and warm wishes have been safely conveyed to the couple.',
+        });
+      } else {
+        setGuestRegFeedback({
+          success: false,
+          message: res.message || 'Failed to submit response.',
+        });
+      }
+    } catch (err: any) {
+      setGuestRegFeedback({
+        success: false,
+        message: err.message || 'An error occurred while submitting your response.',
+      });
+    } finally {
+      setIsSubmittingGuestReg(false);
+    }
+  };
+
   const handleGiftSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contributorName.trim()) {
@@ -835,31 +913,226 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
         </div>
       )}
 
-      {/* SECTION G: RSVP ENTRY POINT (VISUAL & PROTOCOL NOTICE) */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16">
-        <div className="p-8 sm:p-12 bg-ivory-surface border border-sand-border rounded-sm text-center space-y-6 shadow-sm">
-          <div className="w-12 h-12 mx-auto rounded-full bg-forest text-ivory flex items-center justify-center border border-sand">
-            <Heart className="w-5 h-5" />
-          </div>
-
-          <div className="space-y-2 max-w-xl mx-auto">
-            <h2 className="text-3xl font-serif text-forest font-bold">
-              {lang === 'ml' ? 'ഞങ്ങളോടൊപ്പം പങ്കുചേരൂ' : 'Celebrate With Us'}
+      {/* SECTION G: PRIVATE GUEST REGISTRATION ("We'd Love to Have You With Us") */}
+      <section className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
+        <div className="bg-ivory-surface border border-sand-border rounded-sm p-6 sm:p-10 shadow-sm space-y-8">
+          {/* Section Header */}
+          <div className="text-center space-y-2">
+            <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-sand/40 border border-sand-border text-[11px] uppercase tracking-widest text-forest font-semibold">
+              <Heart className="w-3.5 h-3.5 text-forest" />
+              <span>{lang === 'ml' ? 'സാന്നിധ്യം അറിയിക്കാം' : 'Guest Response'}</span>
+            </div>
+            <h2 className="text-3xl sm:text-4xl font-serif text-forest font-bold">
+              {lang === 'ml' ? 'ഞങ്ങളോടൊപ്പം പങ്കുചേരൂ' : "We'd Love to Have You With Us"}
             </h2>
-            <p className="text-xs text-charcoal-muted leading-relaxed">
+            <p className="text-xs sm:text-sm text-charcoal-muted leading-relaxed max-w-xl mx-auto">
               {lang === 'ml'
-                ? 'താങ്കളുടെയും കുടുംബത്തിന്റെയും സാന്നിധ്യവും അനുഗ്രഹവും ഞങ്ങൾക്ക് ഏറ്റവും വിലപ്പെട്ടതാണ്. മംഗല്യ വേളയിലേക്ക് സ്നേഹപൂർവ്വം സ്വാഗതം.'
-                : 'Your presence and heartfelt blessings are the greatest gift to the couple and both families. We look forward to celebrating with you.'}
+                ? 'ഞങ്ങളുടെ ഈ സന്തോഷദിനത്തിൽ താങ്കളുടെ സാന്നിധ്യം അവിസ്മരണീയമാകും. ദയവായി താങ്കളുടെ വിവരങ്ങൾ ഞങ്ങളുമായി പങ്കുവെക്കുക.'
+                : 'Your presence would make our special day even more memorable. Kindly share your details with us.'}
             </p>
           </div>
 
-          <div className="pt-4 border-t border-sand-border/60 max-w-md mx-auto">
-            <div className="p-3.5 bg-sand/30 border border-sand-border rounded-sm text-[11px] text-charcoal-muted font-mono leading-relaxed">
-              {lang === 'ml'
-                ? 'വ്യക്തിഗത RSVP സ്ഥിരീകരണ പോർട്ടൽ ഉടൻ ആരംഭിക്കുന്നതാണ്.'
-                : 'Personalized guest access code verification portal opens in the next ceremonial phase.'}
+          {/* Polite Confirmation Message */}
+          {isGuestRegSubmitted ? (
+            <div className="p-8 bg-sand/20 border border-sand-border rounded-sm text-center space-y-4 animate-fadeIn">
+              <div className="w-12 h-12 mx-auto rounded-full bg-forest text-ivory flex items-center justify-center">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-serif text-xl font-bold text-forest">
+                  {lang === 'ml' ? 'ഹൃദയം നിറഞ്ഞ നന്ദി!' : 'Thank You!'}
+                </h3>
+                <p className="text-xs text-charcoal-muted max-w-md mx-auto leading-relaxed">
+                  {guestRegFeedback?.message ||
+                    (lang === 'ml'
+                      ? 'താങ്കളുടെ വിവരങ്ങൾ വിജയകരമായി രേഖപ്പെടുത്തി. വിവാഹവേദിയിൽ കാണാൻ ഞങ്ങൾ ആകാംക്ഷയോടെ കാത്തിരിക്കുന്നു!'
+                      : 'Your details have been warmly received. We eagerly look forward to celebrating together!')}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsGuestRegSubmitted(false);
+                  setGuestRegName('');
+                  setGuestRegAddress('');
+                  setGuestRegMobile('');
+                  setGuestRegSide('');
+                  setGuestRegNote('');
+                  setGuestRegFeedback(null);
+                }}
+                className="inline-flex items-center space-x-1.5 text-xs text-forest underline hover:text-forest-light font-medium pt-2"
+              >
+                <span>{lang === 'ml' ? 'മറ്റൊരു പ്രതികരണം സമർപ്പിക്കുക' : 'Submit another response'}</span>
+              </button>
             </div>
-          </div>
+          ) : (
+            <form onSubmit={handleGuestRegSubmit} className="space-y-6">
+              {/* Feedback Alert */}
+              {guestRegFeedback && !guestRegFeedback.success && (
+                <div className="p-3 bg-red-50 border border-red-200 text-red-900 rounded-sm text-xs flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <span>{guestRegFeedback.message}</span>
+                </div>
+              )}
+
+              {/* 1. Name (Required) */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold mb-1.5">
+                  {lang === 'ml' ? 'പൂർണ്ണ നാമം *' : 'Name *'}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={guestRegName}
+                  onChange={(e) => setGuestRegName(e.target.value)}
+                  placeholder={lang === 'ml' ? 'ഉദാ. രാഹുൽ മേനോൻ / സ്നേഹിതൻ' : 'e.g. Rahul Menon / Anjali Nair'}
+                  className="w-full px-3.5 py-2.5 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-forest"
+                />
+              </div>
+
+              {/* 2. Which side are you joining us from? (Required) */}
+              <div>
+                <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold mb-2">
+                  {lang === 'ml'
+                    ? 'ഏതു ഭാഗത്തുനിന്നാണ് താങ്കൾ പങ്കെടുക്കുന്നത്? *'
+                    : 'Which side are you joining us from? *'}
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setGuestRegSide('BRIDE')}
+                    className={`p-3.5 border rounded-sm text-left flex items-center justify-between transition-all cursor-pointer ${
+                      guestRegSide === 'BRIDE'
+                        ? 'bg-sand/40 border-forest text-forest shadow-xs'
+                        : 'bg-ivory border-sand-border text-charcoal hover:border-forest/40'
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-serif font-bold block">
+                        {lang === 'ml' ? "വധുവിന്റെ ഭാഗം (Bride's Side)" : "Bride's Side"}
+                      </span>
+                      <span className="text-[10px] text-charcoal-muted block">
+                        {lang === 'ml' ? 'വധുവിന്റെ കുടുംബം / സുഹൃത്തുക്കൾ' : "Family, friends & guests of the bride"}
+                      </span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        guestRegSide === 'BRIDE' ? 'border-forest bg-forest text-ivory' : 'border-sand-border bg-white'
+                      }`}
+                    >
+                      {guestRegSide === 'BRIDE' && <span className="w-1.5 h-1.5 rounded-full bg-ivory"></span>}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGuestRegSide('GROOM')}
+                    className={`p-3.5 border rounded-sm text-left flex items-center justify-between transition-all cursor-pointer ${
+                      guestRegSide === 'GROOM'
+                        ? 'bg-sand/40 border-forest text-forest shadow-xs'
+                        : 'bg-ivory border-sand-border text-charcoal hover:border-forest/40'
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <span className="text-xs font-serif font-bold block">
+                        {lang === 'ml' ? "വരന്റെ ഭാഗം (Groom's Side)" : "Groom's Side"}
+                      </span>
+                      <span className="text-[10px] text-charcoal-muted block">
+                        {lang === 'ml' ? 'വരന്റെ കുടുംബം / സുഹൃത്തുക്കൾ' : "Family, friends & guests of the groom"}
+                      </span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        guestRegSide === 'GROOM' ? 'border-forest bg-forest text-ivory' : 'border-sand-border bg-white'
+                      }`}
+                    >
+                      {guestRegSide === 'GROOM' && <span className="w-1.5 h-1.5 rounded-full bg-ivory"></span>}
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Mobile Number (Optional) & 4. Address (Optional) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold mb-1.5">
+                    {lang === 'ml' ? 'മൊബൈൽ നമ്പർ (ഐച്ഛികം)' : 'Mobile Number (Optional)'}
+                  </label>
+                  <div className="relative">
+                    <Phone className="w-3.5 h-3.5 absolute left-3 top-3 text-charcoal-muted" />
+                    <input
+                      type="tel"
+                      value={guestRegMobile}
+                      onChange={(e) => setGuestRegMobile(e.target.value)}
+                      placeholder="+91 98765 43210"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-forest"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold mb-1.5">
+                    {lang === 'ml' ? 'വിലാസം / സ്ഥലം (ഐച്ഛികം)' : 'Address (Optional)'}
+                  </label>
+                  <div className="relative">
+                    <MapPin className="w-3.5 h-3.5 absolute left-3 top-3 text-charcoal-muted" />
+                    <input
+                      type="text"
+                      value={guestRegAddress}
+                      onChange={(e) => setGuestRegAddress(e.target.value)}
+                      placeholder={lang === 'ml' ? 'വീട്ടുപേര്, പ്രദേശം അല്ലെങ്കിൽ സ്ഥലം' : 'House, locality or town'}
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-forest"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 5. A Note for the Couple (Optional, Max 1000 Chars) */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold">
+                    {lang === 'ml' ? 'നവദമ്പതികൾക്കായി ഒരു സന്ദേശം (ഐച്ഛികം)' : 'A Note for the Couple (Optional)'}
+                  </label>
+                  <span className="text-[10px] font-mono text-charcoal-muted">
+                    {1000 - guestRegNote.length} {lang === 'ml' ? 'അക്ഷരങ്ങൾ ബാക്കി' : 'characters remaining'}
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  maxLength={1000}
+                  value={guestRegNote}
+                  onChange={(e) => setGuestRegNote(e.target.value)}
+                  placeholder={
+                    lang === 'ml'
+                      ? 'നവദമ്പതികൾക്കായി താങ്കളുടെ ഹൃദ്യമായ ആശംസകൾ, പ്രാർത്ഥനകൾ, അല്ലെങ്കിൽ മറ്റ് വിവരങ്ങൾ ഇവിടെ രേഖപ്പെടുത്താം...'
+                      : 'Write anything you wish — warm blessings, messages, memories or travel details for the couple...'
+                  }
+                  className="w-full p-3 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal placeholder-charcoal-muted/60 focus:outline-none focus:border-forest leading-relaxed"
+                />
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isSubmittingGuestReg}
+                className="w-full py-3.5 bg-forest text-ivory text-xs uppercase tracking-widest font-semibold rounded-sm hover:bg-forest-light transition-all flex items-center justify-center space-x-2 border border-forest-dark shadow-sm active:scale-[0.99] disabled:opacity-80 cursor-pointer"
+              >
+                <Heart className="w-4 h-4 text-ivory" />
+                <span>
+                  {isSubmittingGuestReg
+                    ? (lang === 'ml' ? 'സമർപ്പിക്കുന്നു...' : 'Sending Response...')
+                    : (lang === 'ml' ? 'വിവരങ്ങൾ സമർപ്പിക്കുക' : 'Send Response')}
+                </span>
+              </button>
+
+              {/* Privacy Reassurance Note */}
+              <p className="text-[10px] text-center text-charcoal-muted">
+                {lang === 'ml'
+                  ? '✦ താങ്കൾ പങ്കുവെക്കുന്ന വിവരങ്ങളും ആശംസകളും പൂർണ്ണമായും സ്വകാര്യമായി സൂക്ഷിക്കുന്നതാണ്.'
+                  : '✦ Your details and personal notes are kept strictly private and will only be viewed by the wedding hosts.'}
+              </p>
+            </form>
+          )}
         </div>
       </section>
 

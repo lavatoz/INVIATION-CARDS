@@ -91,6 +91,7 @@ model WeddingInvitation {
   giftContributions GiftContribution[]
   sponsors          WeddingSponsor[]
   media             Media[]
+  guestRegistrations GuestRegistration[]
 
   @@index([ownerId])
   @@index([slug])
@@ -346,3 +347,26 @@ model Media {
   @@index([weddingInvitationId])
   @@map("media_records")
 }
+
+enum GuestSide {
+  BRIDE
+  GROOM
+}
+
+model GuestRegistration {
+  id                  String            @id @default(uuid())
+  invitationId        String
+  invitation          WeddingInvitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  fullName            String
+  address             String?
+  mobileNumber        String?
+  side                GuestSide
+  note                String?           @db.Text
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([invitationId])
+  @@index([createdAt])
+  @@map("guest_registrations")
+}
+

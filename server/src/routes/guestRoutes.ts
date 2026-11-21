@@ -9,6 +9,11 @@ import {
   exportGuestsCsv,
   updateRsvpByOwner,
 } from '../controllers/guestController';
+import {
+  getGuestRegistrations,
+  deleteGuestRegistration,
+  exportGuestRegistrationsCsv,
+} from '../controllers/guestRegistrationController';
 import { authenticateToken, requireOwner, checkInvitationOwnership } from '../middleware/auth';
 
 const router = Router();
@@ -32,5 +37,10 @@ router.get('/invitations/:invitationId/attendance', checkInvitationOwnership, ge
 
 // CSV Export
 router.get('/invitations/:invitationId/export-csv', checkInvitationOwnership, exportGuestsCsv);
+
+// Private Registered Guests Management (Task: Private Guest Registration)
+router.get('/invitations/:invitationId/guest-registrations', checkInvitationOwnership, getGuestRegistrations);
+router.delete('/invitations/:invitationId/guest-registrations/:registrationId', checkInvitationOwnership, deleteGuestRegistration);
+router.get('/invitations/:invitationId/guest-registrations/export-csv', checkInvitationOwnership, exportGuestRegistrationsCsv);
 
 export default router;

@@ -8,11 +8,15 @@ import {
   handleYoupiWebhook,
   submitGuestUtr,
 } from '../controllers/giftController';
+import { registerGuestPublic } from '../controllers/guestRegistrationController';
 
 const router = Router();
 
 // Public invitation route (no auth required)
 router.get('/invitations/:slug', getPublicInvitationBySlug);
+
+// Public guest registration route (no auth required)
+router.post('/invitations/:slug/register-guest', registerGuestPublic);
 
 // Public RSVP routes (no auth required)
 router.post('/invitations/:slug/rsvp', submitPublicRsvp);

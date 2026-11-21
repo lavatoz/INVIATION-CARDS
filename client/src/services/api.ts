@@ -454,4 +454,51 @@ export const api = {
       `/public/contributions/${contributionId}/submit-utr`,
       { method: 'POST', body: JSON.stringify({ utr }) }
     ),
+
+  // --- Private Guest Registration APIs ---
+  registerGuestPublic: (slug: string, payload: {
+    fullName: string;
+    address?: string | null;
+    mobileNumber?: string | null;
+    side: 'BRIDE' | 'GROOM';
+    note?: string | null;
+  }) =>
+    request<{ success: boolean; message: string }>(
+      `/public/invitations/${encodeURIComponent(slug)}/register-guest`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  getGuestRegistrations: (invitationId: string) =>
+    request<{
+      success: boolean;
+      data: {
+        summary: {
+          total: number;
+          brideCount: number;
+          groomCount: number;
+        };
+        registrations: Array<{
+          id: string;
+          fullName: string;
+          address?: string | null;
+          mobileNumber?: string | null;
+          side: 'BRIDE' | 'GROOM';
+          note?: string | null;
+          createdAt: string;
+        }>;
+      };
+    }>(`/owner/invitations/${invitationId}/guest-registrations`),
+
+  deleteGuestRegistration: (invitationId: string, registrationId: string) =>
+    request<{ success: boolean; message: string }>(
+      `/owner/invitations/${invitationId}/guest-registrations/${registrationId}`,
+      { method: 'DELETE' }
+    ),
+
+  exportGuestRegistrationsCsv: (invitationId: string) => {
+    const token = getAuthToken();
+    return fetch(`${API_BASE}/owner/invitations/${invitationId}/guest-registrations/export-csv`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  },
 };
