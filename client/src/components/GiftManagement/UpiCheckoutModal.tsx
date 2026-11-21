@@ -14,7 +14,7 @@ import {
   ChevronRight,
   Send,
 } from 'lucide-react';
-import { api } from '../../services/api';
+import { api, API_BASE } from '../../services/api';
 import { PaymentLifecycleStatus } from '../../types';
 
 interface UpiCheckoutModalProps {
@@ -87,7 +87,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
     if (!isOpen || !contributionId) return;
 
     // 1. Establish SSE Connection
-    const sseUrl = `/api/public/contributions/${contributionId}/status-stream`;
+    const sseUrl = `${API_BASE}/public/contributions/${contributionId}/status-stream`;
     try {
       const es = new EventSource(sseUrl);
       eventSourceRef.current = es;

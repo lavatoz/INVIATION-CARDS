@@ -21,7 +21,7 @@ import {
   InitiateGiftPayload,
 } from '../types';
 
-const API_BASE = '/api';
+export const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('wedding_platform_token');
@@ -46,15 +46,42 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  const url = `${API_BASE}${endpoint}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (networkError: any) {
+    throw new Error(
+      `Unable to reach backend API at ${url}. Please verify network connectivity and backend service status.`
+    );
+  }
 
-  const data = await response.json().catch(() => ({
-    success: false,
-    message: 'Invalid JSON response from server',
-  }));
+  const contentType = response.headers.get('content-type') || '';
+  let data: any;
+
+  if (contentType.includes('application/json')) {
+    try {
+      data = await response.json();
+    } catch {
+      data = {
+        success: false,
+        message: `Failed to parse JSON response from ${url} (HTTP ${response.status})`,
+      };
+    }
+  } else {
+    // Non-JSON response (e.g. HTML 404/502 from Vercel edge router when backend is offline or unrouted)
+    const rawText = await response.text().catch(() => '');
+    const isHtml = /<!DOCTYPE html|<html/i.test(rawText);
+    data = {
+      success: false,
+      message: isHtml
+        ? `Backend API at ${url} returned an HTML error page (HTTP ${response.status} ${response.statusText || 'Error'}). The backend server may be offline or VITE_API_BASE_URL is misconfigured.`
+        : `Unexpected response from ${url} (HTTP ${response.status} ${response.statusText || 'Error'}).`,
+    };
+  }
 
   if (!response.ok) {
     throw new Error(data.message || `Request failed with status ${response.status}`);
