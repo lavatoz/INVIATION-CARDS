@@ -1,0 +1,348 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  OWNER
+  ADMIN
+}
+
+enum FamilySide {
+  GROOM
+  BRIDE
+  BOTH
+}
+
+enum RSVPStatus {
+  ATTENDING
+  DECLINED
+  TENTATIVE
+  PENDING
+}
+
+enum PaymentStatus {
+  CREATED
+  PENDING
+  OBSERVED_SUCCESS
+  MANUAL_REVIEW
+  RECONCILED
+  FAILED
+  EXPIRED
+  REFUNDED
+  INITIATED
+  SUCCESS
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+model User {
+  id           String              @id @default(uuid())
+  email        String              @unique
+  passwordHash String
+  fullName     String
+  phoneNumber  String?
+  role         Role                @default(OWNER)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  weddings     WeddingInvitation[]
+
+  @@map("users")
+}
+
+model WeddingInvitation {
+  id                String               @id @default(uuid())
+  ownerId           String
+  owner             User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  slug              String               @unique
+  titleEn           String
+  titleMl           String?
+  descriptionEn     String?
+  descriptionMl     String?
+  weddingDate       DateTime?
+  isPublished       Boolean              @default(false)
+  designSettings    Json?
+  enableGifts       Boolean              @default(false)
+  giftHeadingEn     String?              @default("A Gift From the Heart")
+  giftHeadingMl     String?              @default("ഹൃദയപൂർവ്വം ഒരു സമ്മാനം")
+  giftIntroEn       String?
+  giftIntroMl       String?
+  suggestedGiftAmounts String?           @default("200,500,2000")
+  paymentConfig     Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  coupleDetails     CoupleDetails?
+  familyMembers     FamilyMember[]
+  venues            WeddingVenue[]
+  events            WeddingEvent[]
+  guests            WeddingGuest[]
+  rsvps             GuestRSVP[]
+  paymentTransactions PaymentTransaction[]
+  giftContributions GiftContribution[]
+  sponsors          WeddingSponsor[]
+  media             Media[]
+
+  @@index([ownerId])
+  @@index([slug])
+  @@map("wedding_invitations")
+}
+
+model CoupleDetails {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String            @unique
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  partner1NameEn      String
+  partner1NameMl      String?
+  partner1Role        String?           @default("Groom")
+  partner1TitleEn     String?
+  partner1TitleMl     String?
+  partner1BioEn       String?
+  partner1BioMl       String?
+  partner1PhotoUrl    String?
+  partner2NameEn      String
+  partner2NameMl      String?
+  partner2Role        String?           @default("Bride")
+  partner2TitleEn     String?
+  partner2TitleMl     String?
+  partner2BioEn       String?
+  partner2BioMl       String?
+  partner2PhotoUrl    String?
+  coverPhotoUrl       String?
+  storyEn             String?
+  storyMl             String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@map("couple_details")
+}
+
+model FamilyMember {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  nameEn              String
+  nameMl              String?
+  relationEn          String
+  relationMl          String?
+  descriptionEn       String?
+  descriptionMl       String?
+  side                FamilySide        @default(GROOM)
+  sortOrder           Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([weddingInvitationId])
+  @@map("family_members")
+}
+
+model WeddingVenue {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  nameEn              String
+  nameMl              String?
+  addressEn           String
+  addressMl           String?
+  district            String?
+  state               String?
+  pincode             String?
+  landmarkEn          String?
+  landmarkMl          String?
+  googleMapsUrl       String?
+  capacity            Int?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  events              WeddingEvent[]
+
+  @@index([weddingInvitationId])
+  @@map("wedding_venues")
+}
+
+model WeddingEvent {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  venueId             String?
+  venue               WeddingVenue?     @relation(fields: [venueId], references: [id], onDelete: SetNull)
+  titleEn             String
+  titleMl             String?
+  descriptionEn       String?
+  descriptionMl       String?
+  eventType           String?
+  startTime           DateTime
+  endTime             DateTime?
+  dressCodeEn         String?
+  dressCodeMl         String?
+  sortOrder           Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([weddingInvitationId])
+  @@index([venueId])
+  @@map("wedding_events")
+}
+
+model WeddingGuest {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  name                String
+  phone               String?
+  email               String?
+  accessCode          String?           @unique
+  side                FamilySide?
+  guestGroup          String?
+  invitedCount        Int               @default(1)
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  rsvps               GuestRSVP[]
+
+  @@index([weddingInvitationId])
+  @@map("wedding_guests")
+}
+
+model GuestRSVP {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  guestId             String?
+  guest               WeddingGuest?     @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  guestName           String
+  guestContact        String?
+  phone               String?
+  email               String?
+  status              RSVPStatus        @default(PENDING)
+  attendeeCount       Int               @default(1)
+  accompanyingNames   String?
+  dietaryPreferences  String?
+  message             String?
+  editToken           String?           @unique
+  submittedAt         DateTime          @default(now())
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([weddingInvitationId])
+  @@index([guestId])
+  @@index([editToken])
+  @@map("guest_rsvps")
+}
+
+model PaymentTransaction {
+  id                   String            @id @default(uuid())
+  weddingInvitationId  String
+  weddingInvitation    WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Restrict)
+  transactionReference String            @unique
+  orderId              String?           @unique
+  gateway              String
+  status               PaymentStatus     @default(CREATED)
+  settlementState      String?           @default("NOT_RECONCILED")
+  amount               Decimal           @db.Decimal(12, 2)
+  currency             String            @default("INR")
+  gatewayPaymentId     String?
+  checkoutUrl          String?
+  upiQrString          String?
+  utr                  String?
+  gatewayResponse      String?
+  reconciledAt         DateTime?
+  reconciledBy         String?
+  verificationNotes    String?
+  paidAt               DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+  giftContribution     GiftContribution?
+
+  @@index([weddingInvitationId])
+  @@index([transactionReference])
+  @@index([orderId])
+  @@index([gatewayPaymentId])
+  @@map("payment_transactions")
+}
+
+model WebhookDelivery {
+  id          String   @id @default(uuid())
+  deliveryId  String   @unique
+  gateway     String
+  event       String
+  payload     Json?
+  processedAt DateTime @default(now())
+
+  @@index([deliveryId])
+  @@map("webhook_deliveries")
+}
+
+model GiftContribution {
+  id                   String              @id @default(uuid())
+  weddingInvitationId  String
+  weddingInvitation    WeddingInvitation   @relation(fields: [weddingInvitationId], references: [id], onDelete: Restrict)
+  contributorName      String
+  contributorEmail     String?
+  contributorPhone     String?
+  amount               Decimal             @db.Decimal(12, 2)
+  currency             String              @default("INR")
+  wishes               String?
+  paymentTransactionId String?             @unique
+  paymentTransaction   PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([weddingInvitationId])
+  @@map("gift_contributions")
+}
+
+model WeddingSponsor {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  nameEn              String
+  nameMl              String?
+  category            String?
+  sponsorType         String?
+  logoUrl             String?
+  websiteUrl          String?
+  descriptionEn       String?
+  descriptionMl       String?
+  contactPhone        String?
+  contactEmail        String?
+  socialLinks         String?
+  discountOfferEn     String?
+  discountOfferMl     String?
+  isActive            Boolean           @default(true)
+  sortOrder           Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([weddingInvitationId])
+  @@index([isActive])
+  @@map("wedding_sponsors")
+}
+
+model Media {
+  id                  String            @id @default(uuid())
+  weddingInvitationId String
+  weddingInvitation   WeddingInvitation @relation(fields: [weddingInvitationId], references: [id], onDelete: Cascade)
+  fileName            String
+  originalName        String
+  filePath            String
+  mimeType            String
+  fileSize            Int
+  mediaType           MediaType         @default(IMAGE)
+  captionEn           String?
+  captionMl           String?
+  sortOrder           Int               @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([weddingInvitationId])
+  @@map("media_records")
+}

@@ -1,0 +1,15 @@
+import { Router } from 'express';
+import { register, login, getMe, logout } from '../controllers/authController';
+import { authenticateToken } from '../middleware/auth';
+
+const router = Router();
+
+// Public auth endpoints
+router.post('/register', register);
+router.post('/login', login);
+router.post('/logout', logout);
+
+// Protected owner auth endpoint
+router.get('/me', authenticateToken, getMe);
+
+export default router;
