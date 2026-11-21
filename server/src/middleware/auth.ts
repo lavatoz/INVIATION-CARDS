@@ -1,14 +1,17 @@
-import { Request, Response, NextFunction } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import { verifyToken, TokenPayload } from '../utils/jwt';
 import prisma from '../config/db';
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    fullName: string;
-    role: string;
-  };
+export interface AuthenticatedUser {
+  id: string;
+  email: string;
+  fullName: string;
+  role: string;
+}
+
+export interface AuthenticatedRequest extends express.Request {
+  user?: AuthenticatedUser;
+  rawBody?: Buffer;
 }
 
 export const authenticateToken = async (
