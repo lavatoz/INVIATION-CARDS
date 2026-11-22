@@ -21,7 +21,40 @@ import {
   InitiateGiftPayload,
 } from '../types';
 
-export const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+/**
+ * Resolves the appropriate API base URL.
+ * - In production (Render/Vercel): Uses VITE_API_BASE_URL (or /api for same-origin proxy).
+ * - In local dev accessed on mobile via LAN IP (e.g. http://192.168.x.x:5173):
+ *   If VITE_API_BASE_URL was explicitly set with localhost/127.0.0.1, it dynamically substitutes
+ *   the current hostname so mobile clients reach the laptop's backend rather than the mobile's localhost.
+ * - If VITE_API_BASE_URL is not provided or is relative (/api), returns /api which leverages Vite's dev proxy.
+ */
+export const getApiBaseUrl = (): string => {
+  const envUrl = (import.meta as any).env?.VITE_API_BASE_URL;
+
+  if (envUrl && typeof envUrl === 'string' && envUrl.trim() !== '' && envUrl.trim() !== '/api') {
+    const trimmed = envUrl.trim();
+    // If accessed from a mobile or external device on LAN (hostname is not localhost/127.0.0.1)
+    if (
+      typeof window !== 'undefined' &&
+      window.location?.hostname &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      if (trimmed.includes('localhost') || trimmed.includes('127.0.0.1')) {
+        return trimmed
+          .replace('localhost', window.location.hostname)
+          .replace('127.0.0.1', window.location.hostname)
+          .replace(/\/+$/, '');
+      }
+    }
+    return trimmed.replace(/\/+$/, '');
+  }
+
+  return '/api';
+};
+
+export const API_BASE = getApiBaseUrl();
 
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('wedding_platform_token');
