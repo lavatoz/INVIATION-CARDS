@@ -32,13 +32,30 @@ app.use(
   })
 );
 
-app.use(
-  express.json({
-    verify: (req: any, _res, buf) => {
-      req.rawBody = buf;
-    },
-  })
-);
+// Route-specific JSON body parser:
+// Allow up to 10MB specifically for sponsor logo uploads (5MB binary file expands to ~6.85MB in base64 + JSON wrapper)
+// Keep strict 100kb limit for all other routes to protect against DoS attacks
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const isUploadRoute =
+    req.path?.includes('/sponsors/upload-logo') ||
+    (req.originalUrl && req.originalUrl.includes('/sponsors/upload-logo'));
+
+  if (isUploadRoute) {
+    express.json({
+      limit: '10mb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    })(req, res, next);
+  } else {
+    express.json({
+      limit: '100kb',
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    })(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: true }));
 
 // Routes

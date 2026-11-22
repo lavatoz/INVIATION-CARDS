@@ -74,8 +74,21 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      triggerFeedback('error', 'Image size must be less than 5MB.');
+    // Allowed types: PNG, JPG, JPEG, WebP
+    const allowedMimeTypes = ['image/png', 'image/jpeg', 'image/webp'];
+    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (!allowedMimeTypes.includes(file.type) && !allowedExtensions.includes(fileExt)) {
+      triggerFeedback('error', 'Unsupported file type. Please upload a PNG, JPG, JPEG, or WebP image.');
+      e.target.value = '';
+      return;
+    }
+
+    const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+    if (file.size > MAX_SIZE_BYTES) {
+      triggerFeedback('error', 'File size exceeds 5MB limit. Please choose a smaller image.');
+      e.target.value = '';
       return;
     }
 
@@ -99,11 +112,13 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
         triggerFeedback('error', err.message || 'Failed to upload logo.');
       } finally {
         setIsUploading(false);
+        e.target.value = '';
       }
     };
     reader.onerror = () => {
       triggerFeedback('error', 'Error reading image file.');
       setIsUploading(false);
+      e.target.value = '';
     };
     reader.readAsDataURL(file);
   };
@@ -333,7 +348,7 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                     <span>{isUploading ? 'Uploading...' : 'Upload Logo File'}</span>
                     <input
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp"
                       onChange={handleLogoUpload}
                       disabled={isUploading}
                       className="hidden"
@@ -350,7 +365,7 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                   )}
                 </div>
                 <p className="text-[11px] text-charcoal-muted">
-                  Supported formats: PNG, JPG, WEBP, SVG. Saved safely to server local disk storage.
+                  Supported formats: PNG, JPG, JPEG, WebP (max 5MB). Saved safely to server local disk storage.
                 </p>
               </div>
             </div>

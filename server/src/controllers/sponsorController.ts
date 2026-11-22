@@ -222,6 +222,50 @@ export const reorderSponsors = async (
 };
 
 /**
+ * Validate image file magic bytes against its claimed file extension.
+ * Supports PNG, JPEG (JPG), and WebP formats.
+ */
+function isValidImageMagicBytes(buffer: Buffer, ext: string): boolean {
+  if (buffer.length < 12) return false;
+
+  if (ext === '.png') {
+    // PNG magic bytes: 89 50 4E 47 (0x89 'P' 'N' 'G')
+    return (
+      buffer[0] === 0x89 &&
+      buffer[1] === 0x50 &&
+      buffer[2] === 0x4e &&
+      buffer[3] === 0x47
+    );
+  }
+
+  if (ext === '.jpg' || ext === '.jpeg') {
+    // JPEG magic bytes: FF D8 FF
+    return (
+      buffer[0] === 0xff &&
+      buffer[1] === 0xd8 &&
+      buffer[2] === 0xff
+    );
+  }
+
+  if (ext === '.webp') {
+    // WebP magic bytes: RIFF .... WEBP
+    const isRiff =
+      buffer[0] === 0x52 && // 'R'
+      buffer[1] === 0x49 && // 'I'
+      buffer[2] === 0x46 && // 'F'
+      buffer[3] === 0x46;   // 'F'
+    const isWebp =
+      buffer[8] === 0x57 && // 'W'
+      buffer[9] === 0x45 && // 'E'
+      buffer[10] === 0x42 && // 'B'
+      buffer[11] === 0x50;  // 'P'
+    return isRiff && isWebp;
+  }
+
+  return false;
+}
+
+/**
  * Upload sponsor logo to local disk
  */
 export const uploadSponsorLogo = async (
@@ -229,7 +273,7 @@ export const uploadSponsorLogo = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { fileName, fileData, mimeType } = req.body;
+    const { fileName, fileData } = req.body;
 
     if (!fileData || !fileName) {
       res.status(400).json({
@@ -239,14 +283,14 @@ export const uploadSponsorLogo = async (
       return;
     }
 
-    // Supported formats
-    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp', '.svg'];
+    // Supported formats: PNG, JPG, JPEG, WebP
+    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
     const ext = path.extname(fileName).toLowerCase();
 
     if (!allowedExtensions.includes(ext)) {
       res.status(400).json({
         success: false,
-        message: 'Invalid file format. Allowed: PNG, JPG, JPEG, WEBP, SVG.',
+        message: 'Invalid file format. Allowed: PNG, JPG, JPEG, WEBP.',
       });
       return;
     }
@@ -255,11 +299,28 @@ export const uploadSponsorLogo = async (
     const base64Data = fileData.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
-    // Limit size to 5MB
+    if (buffer.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: 'File content cannot be empty.',
+      });
+      return;
+    }
+
+    // Limit size to 5MB (5 * 1024 * 1024 bytes)
     if (buffer.length > 5 * 1024 * 1024) {
       res.status(400).json({
         success: false,
         message: 'Logo file size cannot exceed 5MB.',
+      });
+      return;
+    }
+
+    // Validate magic bytes to verify actual image content
+    if (!isValidImageMagicBytes(buffer, ext)) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid file content. File does not match valid PNG, JPG, or WebP image data.',
       });
       return;
     }
