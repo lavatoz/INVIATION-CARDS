@@ -78,11 +78,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         token,
       },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'An error occurred while creating the account.',
+      message: error?.message || 'An error occurred while creating the account.',
+      ...(process.env.NODE_ENV !== 'production' || process.env.DEBUG === 'true'
+        ? { details: error?.message, code: error?.code }
+        : {}),
     });
   }
 };
