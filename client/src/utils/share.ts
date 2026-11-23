@@ -11,7 +11,7 @@
 export const getPublicInvitationUrl = (slug: string): string => {
   const origin =
     (typeof window !== 'undefined' && window.location ? window.location.origin : '') ||
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_PUBLIC_URL) ||
+    (typeof import.meta !== 'undefined' && ((import.meta as any).env?.PUBLIC_URL || (import.meta as any).env?.VITE_PUBLIC_URL)) ||
     '';
   return `${origin.replace(/\/$/, '')}/invitation/${encodeURIComponent(slug)}`;
 };
