@@ -10,20 +10,39 @@ import sponsorRoutes from './routes/sponsorRoutes';
 import giftRoutes from './routes/giftRoutes';
 import { serveLocalMedia } from './controllers/publicController';
 
-// Helper to identify local development and private LAN IP origins (RFC 1918)
-const isAllowedDevOrigin = (origin: string): boolean => {
-  // Allow localhost and loopback on any port
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+// Helper to identify allowed origins (localhost, private LAN IPs, Vercel deployments, or configured CLIENT_URL)
+const isAllowedOrigin = (origin: string): boolean => {
+  if (!origin) return true;
+
+  const cleanOrigin = origin.replace(/\/+$/, '');
+
+  // 1. Check against CLIENT_URL (supports comma-separated list like "http://localhost:5173,https://my-app.vercel.app")
+  if (env.CLIENT_URL) {
+    const allowedList = env.CLIENT_URL.split(',').map((u) => u.trim().replace(/\/+$/, ''));
+    if (allowedList.includes(cleanOrigin)) {
+      return true;
+    }
+  }
+
+  // 2. Allow all Vercel deployments (*.vercel.app)
+  if (/^https:\/\/[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.vercel\.app$/.test(cleanOrigin)) {
     return true;
   }
-  // Allow private LAN IPv4 addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x) on any port
+
+  // 3. Allow localhost and loopback on any port (for local frontend development)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(cleanOrigin)) {
+    return true;
+  }
+
+  // 4. Allow private LAN IPv4 addresses (192.168.x.x, 10.x.x.x, 172.16-31.x.x) on any port
   if (
     /^https?:\/\/(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(
-      origin
+      cleanOrigin
     )
   ) {
     return true;
   }
+
   return false;
 };
 
@@ -36,24 +55,12 @@ app.use(
       // Allow requests with no origin (e.g. mobile native apps, curl, Postman, server-to-server)
       if (!origin) return callback(null, true);
 
-      // In production, match configured CLIENT_URL
-      if (origin === env.CLIENT_URL) {
+      if (isAllowedOrigin(origin)) {
         return callback(null, true);
       }
 
-      // In development or when not in production, allow localhost and LAN IP origins
-      if (env.NODE_ENV !== 'production') {
-        if (isAllowedDevOrigin(origin)) {
-          return callback(null, true);
-        }
-      }
-
-      // If in production and doesn't match CLIENT_URL, reject
-      if (env.NODE_ENV === 'production') {
-        return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
-      }
-
-      return callback(null, true);
+      // If origin is not recognized, reject cleanly
+      return callback(new Error(`Origin ${origin} not allowed by CORS policy`));
     },
     credentials: true,
   })
