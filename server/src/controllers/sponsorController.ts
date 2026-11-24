@@ -325,24 +325,43 @@ export const uploadSponsorLogo = async (
       return;
     }
 
+    // 1. Attempt writing to local disk cache (for local dev / environments with persistent storage)
     const uploadsDir = path.resolve(__dirname, '../../uploads');
     if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
+      try {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      } catch (err) {
+        // Safe to ignore in read-only / constrained environments
+      }
     }
 
     const uniqueFileName = `sponsor_${crypto.randomUUID()}${ext}`;
     const targetPath = path.join(uploadsDir, uniqueFileName);
 
-    fs.writeFileSync(targetPath, buffer);
+    try {
+      fs.writeFileSync(targetPath, buffer);
+    } catch (err) {
+      console.warn('Could not write logo to local disk:', err);
+    }
 
-    const publicUrl = `/api/media/${uniqueFileName}`;
+    // 2. Build verified Data URL for reliable persistent storage in PostgreSQL.
+    // This completely immunizes against Render's ephemeral container filesystem where local uploads are wiped on restarts/redeployments.
+    const mimeMap: Record<string, string> = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.webp': 'image/webp',
+    };
+    const mimeType = mimeMap[ext] || 'image/png';
+    const persistentDataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
     res.status(200).json({
       success: true,
       message: 'Logo uploaded successfully.',
       data: {
         fileName: uniqueFileName,
-        url: publicUrl,
+        url: persistentDataUrl,
+        fallbackUrl: `/api/media/${uniqueFileName}`,
       },
     });
   } catch (error) {

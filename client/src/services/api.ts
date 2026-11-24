@@ -61,6 +61,30 @@ export const getApiBaseUrl = (): string => {
 
 export const API_BASE = getApiBaseUrl();
 
+/**
+ * Resolves a media or logo URL to a fully qualified URL or Data URL.
+ * - If already a Data URL (data:image/...) or absolute URL (http://, https://), returns it as-is.
+ * - If a relative path (e.g. /api/media/filename.png), prepends the backend origin so requests
+ *   are served directly by the backend (Render) rather than hitting Vercel's SPA index.html.
+ */
+export const resolveMediaUrl = (url: string | null | undefined): string => {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+
+  // Handle relative API paths (e.g. /api/media/... or media/...)
+  const apiBase = getApiBaseUrl(); // e.g. "https://invitation-cards.onrender.com/api" or "/api"
+  if (apiBase.startsWith('http://') || apiBase.startsWith('https://')) {
+    const backendOrigin = apiBase.replace(/\/api\/?$/, '');
+    const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+    return `${backendOrigin}${cleanPath}`;
+  }
+
+  return trimmed;
+};
+
 export const getAuthToken = (): string | null => {
   return localStorage.getItem('wedding_platform_token');
 };

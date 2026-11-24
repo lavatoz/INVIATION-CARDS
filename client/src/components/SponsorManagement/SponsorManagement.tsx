@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { api } from '../../services/api';
+import { api, resolveMediaUrl } from '../../services/api';
 import { WeddingSponsor } from '../../types';
 import { BilingualInput } from '../BilingualInput';
 import {
@@ -327,11 +327,14 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
             </label>
             <div className="flex flex-col sm:flex-row items-center gap-4">
               {editingSponsor.logoUrl ? (
-                <div className="w-20 h-20 rounded border border-sand bg-ivory-surface flex items-center justify-center overflow-hidden p-1">
+                <div className="w-20 h-20 rounded border border-sand bg-ivory-surface flex items-center justify-center overflow-hidden p-1 relative">
                   <img
-                    src={editingSponsor.logoUrl}
+                    src={resolveMediaUrl(editingSponsor.logoUrl)}
                     alt="Logo preview"
                     className="max-w-full max-h-full object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = 'none';
+                    }}
                   />
                 </div>
               ) : (
@@ -499,8 +502,23 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
             >
               <div className="flex items-start space-x-4 flex-1">
                 {s.logoUrl ? (
-                  <div className="w-14 h-14 rounded border border-sand-border bg-ivory-surface flex items-center justify-center p-1 flex-shrink-0">
-                    <img src={s.logoUrl} alt={s.nameEn} className="max-w-full max-h-full object-contain" />
+                  <div className="w-14 h-14 rounded border border-sand-border bg-ivory-surface flex items-center justify-center p-1 flex-shrink-0 relative">
+                    <img
+                      src={resolveMediaUrl(s.logoUrl)}
+                      alt={s.nameEn}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        img.style.display = 'none';
+                        const parent = img.parentElement;
+                        if (parent && !parent.querySelector('.fallback-initial')) {
+                          const fb = document.createElement('div');
+                          fb.className = 'w-full h-full flex items-center justify-center text-forest font-serif font-bold text-lg fallback-initial bg-sand/30';
+                          fb.innerText = s.nameEn.charAt(0);
+                          parent.appendChild(fb);
+                        }
+                      }}
+                    />
                   </div>
                 ) : (
                   <div className="w-14 h-14 rounded bg-sand/30 border border-sand-border flex items-center justify-center text-forest font-serif font-bold text-lg flex-shrink-0">

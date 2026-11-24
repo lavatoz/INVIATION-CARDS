@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api } from '../services/api';
+import { api, resolveMediaUrl } from '../services/api';
 import { PublicWeddingInvitation, PublicMediaItem } from '../types';
 import { UpiCheckoutModal } from '../components/GiftManagement/UpiCheckoutModal';
 import {
@@ -869,7 +869,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                 className="group relative aspect-square bg-sand/20 border border-sand-border rounded-sm overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-all"
               >
                 <img
-                  src={item.url}
+                  src={resolveMediaUrl(item.url)}
                   alt={t(item.captionEn, item.captionMl, 'Wedding Photograph')}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   onError={(e) => {
@@ -900,7 +900,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
               <span>{lang === 'ml' ? 'അടയ്ക്കുക' : 'Close'}</span>
             </button>
             <img
-              src={activePhoto.url}
+              src={resolveMediaUrl(activePhoto.url)}
               alt="Full Preview"
               className="max-h-[80vh] w-auto object-contain rounded-sm"
             />
@@ -1382,11 +1382,23 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
 
                     <div className="flex items-center space-x-3.5 pt-1">
                       {sponsor.logoUrl ? (
-                        <div className="w-14 h-14 rounded border border-sand-border bg-ivory flex items-center justify-center p-1 overflow-hidden flex-shrink-0">
+                        <div className="w-14 h-14 rounded border border-sand-border bg-ivory flex items-center justify-center p-1 overflow-hidden flex-shrink-0 relative">
                           <img
-                            src={sponsor.logoUrl}
+                            src={resolveMediaUrl(sponsor.logoUrl)}
                             alt={t(sponsor.nameEn, sponsor.nameMl)}
                             className="max-w-full max-h-full object-contain"
+                            onError={(e) => {
+                              // If image fails to load, gracefully fall back to initial letter
+                              const img = e.currentTarget;
+                              img.style.display = 'none';
+                              const parent = img.parentElement;
+                              if (parent && !parent.querySelector('.logo-fallback')) {
+                                const fallback = document.createElement('div');
+                                fallback.className = 'w-full h-full flex items-center justify-center text-forest font-serif font-bold text-lg logo-fallback bg-sand/30';
+                                fallback.innerText = t(sponsor.nameEn, sponsor.nameMl).charAt(0);
+                                parent.appendChild(fallback);
+                              }
+                            }}
                           />
                         </div>
                       ) : (
