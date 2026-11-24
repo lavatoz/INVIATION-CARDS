@@ -67,14 +67,15 @@ app.use(
 );
 
 // Route-specific JSON body parser:
-// Allow up to 10MB specifically for sponsor logo uploads (5MB binary file expands to ~6.85MB in base64 + JSON wrapper)
-// Keep strict 100kb limit for all other routes to protect against DoS attacks
+// Allow up to 10MB specifically for sponsor routes (upload-logo, add sponsor, update sponsor)
+// to support logos in base64 data URLs without triggering HTTP 413.
+// Keep strict 100kb limit for all other routes to protect against DoS attacks.
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const isUploadRoute =
-    req.path?.includes('/sponsors/upload-logo') ||
-    (req.originalUrl && req.originalUrl.includes('/sponsors/upload-logo'));
+  const isSponsorRoute =
+    req.path?.includes('/sponsors') ||
+    (req.originalUrl && req.originalUrl.includes('/sponsors'));
 
-  if (isUploadRoute) {
+  if (isSponsorRoute) {
     express.json({
       limit: '10mb',
       verify: (req: any, _res, buf) => {

@@ -355,6 +355,26 @@ export const uploadSponsorLogo = async (
     const mimeType = mimeMap[ext] || 'image/png';
     const persistentDataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
+    // 3. Persist media record in PostgreSQL database so serveLocalMedia can reconstruct
+    // the binary file on demand if the container disk is restarted or wiped by Render
+    try {
+      const { invitationId } = req.params;
+      await prisma.media.create({
+        data: {
+          weddingInvitationId: invitationId,
+          fileName: uniqueFileName,
+          originalName: fileName,
+          filePath: persistentDataUrl,
+          mimeType,
+          fileSize: buffer.length,
+          mediaType: 'IMAGE',
+          captionEn: 'Sponsor Logo',
+        },
+      });
+    } catch (mediaDbErr) {
+      console.warn('Could not persist sponsor logo to Media table in database:', mediaDbErr);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Logo uploaded successfully.',

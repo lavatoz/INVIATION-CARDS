@@ -228,9 +228,12 @@ export const getPublicInvitationBySlug = async (
 };
 
 /**
- * Serve local disk media safely with directory traversal protection
+ * Serve local disk media safely with directory traversal protection.
+ * Self-healing: if the file is not found on local disk (e.g. Render restarted container
+ * and wiped the ephemeral disk), it fetches the image data from PostgreSQL (Media table
+ * or WeddingSponsor table), re-caches it to disk, and serves it with HTTP 200.
  */
-export const serveLocalMedia = (req: Request, res: Response): void => {
+export const serveLocalMedia = async (req: Request, res: Response): Promise<void> => {
   try {
     const rawFileName = req.params.fileName;
     if (!rawFileName) {
@@ -249,12 +252,63 @@ export const serveLocalMedia = (req: Request, res: Response): void => {
       return;
     }
 
-    if (!fs.existsSync(targetPath)) {
-      res.status(404).json({ success: false, message: 'Media file not found' });
+    // 1. If present on disk, send immediately
+    if (fs.existsSync(targetPath)) {
+      res.sendFile(targetPath);
       return;
     }
 
-    res.sendFile(targetPath);
+    // 2. Self-healing fallback: Check database Media records for persistent file content
+    const mediaRecord = await prisma.media.findFirst({
+      where: { fileName: safeFileName },
+      select: { filePath: true, mimeType: true },
+    });
+
+    let dataUrl = mediaRecord?.filePath;
+    let mimeType = mediaRecord?.mimeType;
+
+    // 3. Fallback: Check WeddingSponsor records if safeFileName appears in logoUrl
+    if (!dataUrl) {
+      const sponsorWithLogo = await prisma.weddingSponsor.findFirst({
+        where: {
+          OR: [
+            { logoUrl: { contains: safeFileName } },
+            { logoUrl: { startsWith: 'data:image/' } },
+          ],
+        },
+        select: { logoUrl: true },
+      });
+
+      if (sponsorWithLogo?.logoUrl && sponsorWithLogo.logoUrl.startsWith('data:image/')) {
+        dataUrl = sponsorWithLogo.logoUrl;
+      }
+    }
+
+    if (dataUrl && dataUrl.startsWith('data:image/')) {
+      const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        const detectedMime = match[1];
+        const base64Data = match[2];
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        // Restore file back to disk cache
+        try {
+          if (!fs.existsSync(uploadsDir)) {
+            fs.mkdirSync(uploadsDir, { recursive: true });
+          }
+          fs.writeFileSync(targetPath, imageBuffer);
+        } catch (writeErr) {
+          console.warn('Could not re-cache restored media file to disk:', writeErr);
+        }
+
+        res.setHeader('Content-Type', mimeType || detectedMime || 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.status(200).send(imageBuffer);
+        return;
+      }
+    }
+
+    res.status(404).json({ success: false, message: 'Media file not found' });
   } catch (error) {
     console.error('Serve media error:', error);
     res.status(500).json({ success: false, message: 'Error serving media file' });
