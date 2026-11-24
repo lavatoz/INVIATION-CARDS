@@ -11,6 +11,7 @@ import { BilingualInput } from '../BilingualInput';
 import { GuestManagement } from '../GuestManagement/GuestManagement';
 import { SponsorManagement } from '../SponsorManagement/SponsorManagement';
 import { GiftManagement } from '../GiftManagement/GiftManagement';
+import { GalleryManagement } from '../GalleryManagement/GalleryManagement';
 import {
   ArrowLeft,
   Save,
@@ -30,6 +31,7 @@ import {
   FileText,
   Gift,
   Award,
+  Camera,
   Copy,
   Check,
   Share2,
@@ -49,6 +51,7 @@ type EditorSection =
   | 'family'
   | 'events'
   | 'venues'
+  | 'gallery'
   | 'english'
   | 'malayalam'
   | 'design'
@@ -514,6 +517,7 @@ export const WeddingEditor: React.FC<WeddingEditorProps> = ({
     { id: 'family', label: 'Family Lineage', icon: Users },
     { id: 'events', label: 'Wedding Events', icon: Calendar },
     { id: 'venues', label: 'Venue & Location', icon: MapPin },
+    { id: 'gallery', label: 'Photo Gallery', icon: Camera },
     { id: 'english', label: 'English Content', icon: Globe },
     { id: 'malayalam', label: 'Malayalam Content', icon: Languages },
     { id: 'design', label: 'Design Settings', icon: Palette },
@@ -1545,6 +1549,11 @@ export const WeddingEditor: React.FC<WeddingEditorProps> = ({
                 )}
               </div>
             </div>
+          )}
+
+          {/* SECTION: MOMENTS & PHOTOGRAPHS GALLERY */}
+          {activeSection === 'gallery' && (
+            <GalleryManagement invitationId={invitationId} />
           )}
 
           {/* SECTION 7: ENGLISH CONTENT */}

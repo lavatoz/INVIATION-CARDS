@@ -8,6 +8,7 @@ import publicRoutes from './routes/publicRoutes';
 import guestRoutes from './routes/guestRoutes';
 import sponsorRoutes from './routes/sponsorRoutes';
 import giftRoutes from './routes/giftRoutes';
+import mediaRoutes from './routes/mediaRoutes';
 import { serveLocalMedia } from './controllers/publicController';
 
 // Helper to identify allowed origins (localhost, private LAN IPs, Vercel deployments, or configured CLIENT_URL)
@@ -67,15 +68,17 @@ app.use(
 );
 
 // Route-specific JSON body parser:
-// Allow up to 10MB specifically for sponsor routes (upload-logo, add sponsor, update sponsor)
-// to support logos in base64 data URLs without triggering HTTP 413.
+// Allow up to 10MB specifically for sponsor and media upload routes
+// to support photos and logos in base64 data URLs without triggering HTTP 413.
 // Keep strict 100kb limit for all other routes to protect against DoS attacks.
 app.use((req: Request, res: Response, next: NextFunction) => {
-  const isSponsorRoute =
+  const isLargePayloadRoute =
     req.path?.includes('/sponsors') ||
-    (req.originalUrl && req.originalUrl.includes('/sponsors'));
+    (req.originalUrl && req.originalUrl.includes('/sponsors')) ||
+    req.path?.includes('/media') ||
+    (req.originalUrl && req.originalUrl.includes('/media'));
 
-  if (isSponsorRoute) {
+  if (isLargePayloadRoute) {
     express.json({
       limit: '10mb',
       verify: (req: any, _res, buf) => {
@@ -100,6 +103,7 @@ app.use('/api/owner', ownerRoutes);
 app.use('/api/owner', guestRoutes);
 app.use('/api/owner', sponsorRoutes);
 app.use('/api/owner', giftRoutes);
+app.use('/api/owner', mediaRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/media/:fileName', serveLocalMedia);
 

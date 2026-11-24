@@ -233,6 +233,7 @@ export interface PublicMediaItem {
   captionMl?: string | null;
   mediaType: string;
   sortOrder: number;
+  createdAt?: string | null;
 }
 
 // --- Phase 4: Guest & RSVP Types ---

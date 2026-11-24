@@ -141,6 +141,7 @@ export const getPublicInvitationBySlug = async (
             captionMl: true,
             mediaType: true,
             sortOrder: true,
+            createdAt: true,
           },
           orderBy: { sortOrder: 'asc' },
         },

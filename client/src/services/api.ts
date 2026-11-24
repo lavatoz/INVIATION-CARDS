@@ -19,6 +19,7 @@ import {
   GiftTotals,
   GiftContributionRecord,
   InitiateGiftPayload,
+  PublicMediaItem,
 } from '../types';
 
 /**
@@ -431,6 +432,64 @@ export const api = {
     request<{ success: boolean; message: string; data: { fileName: string; url: string } }>(
       `/owner/invitations/${id}/sponsors/upload-logo`,
       { method: 'POST', body: JSON.stringify(payload) }
+    ),
+
+  // --- Photo Gallery & Moments Management ---
+
+  getOwnerMedia: (invitationId: string) =>
+    request<{ success: boolean; data: { media: PublicMediaItem[]; total: number } }>(
+      `/owner/invitations/${invitationId}/media`
+    ),
+
+  uploadGalleryPhoto: (
+    invitationId: string,
+    payload: {
+      fileName?: string;
+      fileData?: string;
+      captionEn?: string;
+      captionMl?: string;
+      photos?: Array<{ fileName: string; fileData: string; captionEn?: string; captionMl?: string }>;
+    }
+  ) =>
+    request<{
+      success: boolean;
+      message: string;
+      data: { media?: PublicMediaItem; mediaList?: PublicMediaItem[] };
+    }>(`/owner/invitations/${invitationId}/media`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  replaceMediaPhoto: (
+    invitationId: string,
+    mediaId: string,
+    payload: { fileName: string; fileData: string; captionEn?: string; captionMl?: string }
+  ) =>
+    request<{ success: boolean; message: string; data: { media: PublicMediaItem } }>(
+      `/owner/invitations/${invitationId}/media/${mediaId}/replace`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  reorderMedia: (invitationId: string, items: Array<{ id: string; sortOrder: number }>) =>
+    request<{ success: boolean; message: string }>(
+      `/owner/invitations/${invitationId}/media/reorder`,
+      { method: 'POST', body: JSON.stringify({ items }) }
+    ),
+
+  updateMedia: (
+    invitationId: string,
+    mediaId: string,
+    payload: { captionEn?: string | null; captionMl?: string | null; sortOrder?: number }
+  ) =>
+    request<{ success: boolean; message: string; data: { media: PublicMediaItem } }>(
+      `/owner/invitations/${invitationId}/media/${mediaId}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+
+  deleteMedia: (invitationId: string, mediaId: string) =>
+    request<{ success: boolean; message: string }>(
+      `/owner/invitations/${invitationId}/media/${mediaId}`,
+      { method: 'DELETE' }
     ),
 
   // --- Gift Contribution Management ---

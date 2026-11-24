@@ -849,9 +849,9 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
         </section>
       )}
 
-      {/* SECTION F: PHOTO GALLERY (LIGHTBOX MODAL) */}
+      {/* SECTION F: PHOTO GALLERY (COMPACT DETAIL CARDS & LIGHTBOX) */}
       {invitation.media && invitation.media.length > 0 && (
-        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-10">
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-8">
           <div className="text-center space-y-2">
             <span className="text-[10px] uppercase tracking-widest text-forest font-semibold block">
               {lang === 'ml' ? 'ചിത്രങ്ങൾ' : 'Memories'}
@@ -859,31 +859,107 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
             <h2 className="text-3xl sm:text-4xl font-serif text-charcoal">
               {lang === 'ml' ? 'മനോഹര നിമിഷങ്ങൾ' : 'Moments & Photographs'}
             </h2>
+            <p className="text-xs text-charcoal-muted max-w-md mx-auto">
+              {lang === 'ml'
+                ? 'ഞങ്ങളുടെ പ്രത്യേക നിമിഷങ്ങളുടെ ഓർമ്മച്ചിത്രങ്ങൾ'
+                : 'A curated collection of cherished milestones and memories.'}
+            </p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {invitation.media.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => setActivePhoto(item)}
-                className="group relative aspect-square bg-sand/20 border border-sand-border rounded-sm overflow-hidden cursor-pointer shadow-sm hover:shadow-md transition-all"
-              >
-                <img
-                  src={resolveMediaUrl(item.url)}
-                  alt={t(item.captionEn, item.captionMl, 'Wedding Photograph')}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  onError={(e) => {
-                    // Handle missing disk image gracefully
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-                <div className="absolute inset-0 bg-forest/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-                  <span className="text-xs uppercase tracking-widest text-ivory font-serif">
-                    {lang === 'ml' ? 'വലുതായി കാണുക' : 'View Full Image'}
-                  </span>
+          {/* Centered responsive grid of compact horizontal detail cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
+            {invitation.media.map((item, index) => {
+              const captionText = t(item.captionEn, item.captionMl);
+              const formattedDate = item.createdAt
+                ? new Date(item.createdAt).toLocaleDateString(lang === 'ml' ? 'ml-IN' : 'en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : null;
+
+              // Title extraction: first line or phrase if multiple lines exist in caption
+              let photoTitle = `${lang === 'ml' ? 'ചിത്രം' : 'Moment'} ${index + 1}`;
+              let photoDescription = '';
+
+              if (captionText) {
+                if (captionText.includes('\n')) {
+                  const parts = captionText.split('\n').filter((p) => p.trim());
+                  photoTitle = parts[0];
+                  photoDescription = parts.slice(1).join(' ');
+                } else if (captionText.includes(' - ')) {
+                  const parts = captionText.split(' - ');
+                  photoTitle = parts[0];
+                  photoDescription = parts.slice(1).join(' - ');
+                } else {
+                  photoTitle = captionText;
+                }
+              }
+
+              return (
+                <div
+                  key={item.id}
+                  className="bg-ivory border border-sand-border rounded-sm p-3.5 flex items-center space-x-3.5 shadow-sm hover:border-forest/40 hover:shadow-md transition-all group"
+                >
+                  {/* Left thumbnail: fixed-size around 90x90px with contained image */}
+                  <div
+                    onClick={() => setActivePhoto(item)}
+                    className="w-[90px] h-[90px] min-w-[90px] min-h-[90px] rounded-sm bg-sand/20 border border-sand-border flex items-center justify-center p-1 overflow-hidden cursor-pointer relative group-hover:border-forest transition-colors flex-shrink-0"
+                    title={lang === 'ml' ? 'വലുതായി കാണുക' : 'Click to view full photo'}
+                  >
+                    <img
+                      src={resolveMediaUrl(item.url)}
+                      alt={photoTitle}
+                      className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-forest/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-[9px] uppercase font-mono tracking-widest text-ivory bg-forest/80 px-1.5 py-0.5 rounded">
+                        View
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right side: Title, Caption/Description, Date */}
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3
+                        onClick={() => setActivePhoto(item)}
+                        className="font-serif text-base font-bold text-forest truncate cursor-pointer hover:underline"
+                      >
+                        {photoTitle}
+                      </h3>
+                      {formattedDate && (
+                        <span className="text-[10px] font-mono text-charcoal-muted uppercase flex-shrink-0">
+                          {formattedDate}
+                        </span>
+                      )}
+                    </div>
+
+                    {photoDescription ? (
+                      <p className="text-xs text-charcoal-muted line-clamp-2 leading-relaxed">
+                        {photoDescription}
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-charcoal-muted/80 italic">
+                        {lang === 'ml' ? 'വിവാഹ ഓർമ്മച്ചിത്രം' : 'Wedding celebration photograph'}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setActivePhoto(item)}
+                      className="text-[10px] font-mono uppercase tracking-wider text-forest font-semibold hover:text-forest-light inline-flex items-center space-x-1 pt-0.5"
+                    >
+                      <span>{lang === 'ml' ? 'പൂർണ്ണ രൂപം കാണുക' : 'View Full Photo'}</span>
+                      <span className="text-xs">→</span>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
