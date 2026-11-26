@@ -242,27 +242,20 @@ class YoupiService {
         };
       } else {
         const errorText = await response.text();
-        console.warn(`YouPI PG returned HTTP ${response.status}: ${errorText}. Using canonical universal UPI intent session.`);
+        console.error(`YouPI PG returned HTTP ${response.status}: ${errorText}`);
+        throw new Error(
+          `YouPI PG V2 payment gateway is currently unavailable (HTTP ${response.status}). Please try again later or ask the host to switch to Direct UPI Intent QR.`
+        );
       }
     } catch (netErr: any) {
-      console.warn(`YouPI PG service at ${env.YOUPI_API_URL} not directly reachable (${netErr.message}). Creating standalone verifiable UPI session.`);
+      if (netErr?.message?.includes('YouPI PG V2 payment gateway')) {
+        throw netErr;
+      }
+      console.error(`YouPI PG service at ${env.YOUPI_API_URL} is unreachable (${netErr.message}).`);
+      throw new Error(
+        'YouPI PG V2 payment gateway is currently unreachable. Please try again later or ask the host to switch to Direct UPI Intent QR.'
+      );
     }
-
-    // Direct fallback session conforming to identical contract when gateway instance is starting or in test mode
-    const generatedPaymentId = `yp_${crypto.randomBytes(12).toString('hex')}`;
-    return {
-      paymentId: generatedPaymentId,
-      orderId: params.orderId,
-      amount: amountStr,
-      amountPaise,
-      currency: 'INR',
-      status: 'INITIATED',
-      checkoutUrl: `${env.YOUPI_CHECKOUT_URL}/checkout/${generatedPaymentId}`,
-      upiUri: canonicalUpiUri,
-      payeeVpa: rawVpa,
-      payeeName,
-      queuePosition: 0,
-    };
   }
 
   /**
@@ -324,12 +317,16 @@ class YoupiService {
    */
   public async getPaymentStatus(paymentId: string): Promise<any> {
     try {
-      const response = await fetch(`${env.YOUPI_API_URL}/api/v1/payments/${paymentId}`, {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${env.YOUPI_API_URL}/api/v1/payments/${encodeURIComponent(paymentId)}`, {
         headers: {
           'X-Merchant-Id': env.YOUPI_MERCHANT_ID || '00000000-0000-0000-0000-000000000001',
           'X-Merchant-Key': env.YOUPI_MERCHANT_KEY,
         },
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       if (!response.ok) return null;
       return await response.json();

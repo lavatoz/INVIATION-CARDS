@@ -479,6 +479,7 @@ export type PaymentLifecycleStatus =
   | 'RECONCILED'
   | 'FAILED'
   | 'EXPIRED'
+  | 'CANCELLED'
   | 'REFUNDED'
   | 'INITIATED'
   | 'SUCCESS';
@@ -562,6 +563,7 @@ export interface InitiateGiftPayload {
 export interface InitiateGiftResponse {
   success: boolean;
   gatewayConfigured: boolean;
+  gatewayUnavailable?: boolean;
   message: string;
   data?: {
     contributionId: string;
@@ -570,6 +572,7 @@ export interface InitiateGiftResponse {
     amount: number;
     currency: string;
     status: PaymentLifecycleStatus;
+    gateway?: string;
     checkoutUrl?: string | null;
     upiUri?: string | null;
     payeeVpa?: string | null;

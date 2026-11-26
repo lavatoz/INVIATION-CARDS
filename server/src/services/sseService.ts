@@ -54,6 +54,7 @@ class SSEService {
     status: string;
     settlementState?: string | null;
     utr?: string | null;
+    transactionReference?: string | null;
     amount?: number | string;
     message?: string;
   }): void {

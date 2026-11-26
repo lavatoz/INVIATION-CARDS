@@ -514,11 +514,13 @@ export const api = {
     request<{
       success: boolean;
       gatewayConfigured: boolean;
+      gatewayUnavailable?: boolean;
       message: string;
       data?: {
         contributionId: string;
         orderId: string;
         transactionReference: string;
+        gateway?: string;
         amount: number;
         currency: string;
         status: string;
@@ -540,6 +542,8 @@ export const api = {
       data: {
         contributionId: string;
         orderId: string;
+        transactionReference?: string;
+        gateway?: string;
         status: string;
         settlementState?: string;
         amount: number;

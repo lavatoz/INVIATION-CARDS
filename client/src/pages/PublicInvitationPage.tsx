@@ -46,12 +46,22 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
   const [activeCheckoutSession, setActiveCheckoutSession] = useState<{
     contributionId: string;
     orderId: string;
+    transactionReference?: string;
+    gateway?: string;
     amount: number;
     contributorName: string;
     upiUri?: string | null;
     checkoutUrl?: string | null;
     payeeVpa?: string | null;
     payeeName?: string | null;
+  } | null>(null);
+
+  const [verifiedContribution, setVerifiedContribution] = useState<{
+    amount: number;
+    orderId: string;
+    transactionReference?: string;
+    utr?: string | null;
+    contributorName: string;
   } | null>(null);
 
   // Gift Contribution Form State
@@ -193,10 +203,13 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
               : 'Online gift payments are currently being configured by the hosts. We warmly appreciate your blessings, and you may convey them in person at the wedding.',
         });
       } else if (res.data) {
-        // Open live interactive YouPI PG UPI checkout modal
+        setVerifiedContribution(null);
+        // Open live interactive UPI checkout modal
         setActiveCheckoutSession({
           contributionId: res.data.contributionId,
           orderId: res.data.orderId,
+          transactionReference: res.data.transactionReference,
+          gateway: res.data.gateway,
           amount: res.data.amount,
           contributorName: contributorName.trim(),
           upiUri: res.data.upiUri,
@@ -1269,6 +1282,32 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
             </div>
 
             <div className="max-w-xl mx-auto p-6 sm:p-8 bg-ivory-surface border border-sand-border rounded-sm shadow-sm space-y-6">
+              {verifiedContribution && (
+                <div className="p-4 rounded-sm bg-emerald-50 border border-emerald-300 text-emerald-950 space-y-1.5 animate-fadeIn">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-700 flex-shrink-0" />
+                    <span className="font-serif font-bold text-sm text-emerald-900">
+                      {lang === 'ml'
+                        ? 'പേയ്‌മെന്റ് വിജയകരമായി സ്ഥിരീകരിച്ചു!'
+                        : 'Payment Successful'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    {lang === 'ml'
+                      ? `${verifiedContribution.contributorName}, താങ്കളുടെ ₹${verifiedContribution.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} സമ്മാന സംഭാവന സ്ഥിരീകരിച്ചു.`
+                      : `Thank you, ${verifiedContribution.contributorName}! Your contribution of ₹${verifiedContribution.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} has been verified.`}
+                  </p>
+                  <div className="text-[11px] font-mono text-emerald-900 pt-1 flex flex-wrap gap-x-3 gap-y-1">
+                    <span>Order: {verifiedContribution.orderId}</span>
+                    {(verifiedContribution.utr || verifiedContribution.transactionReference) && (
+                      <span>
+                        Ref: {verifiedContribution.utr || verifiedContribution.transactionReference}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {giftFeedback && (
                 <div
                   className={`p-4 rounded-sm text-xs space-y-1 transition-all ${
@@ -1589,13 +1628,15 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
         </p>
       </footer>
 
-      {/* LIVE REAL-TIME YouPI PG UPI CHECKOUT MODAL */}
+      {/* LIVE REAL-TIME UPI CHECKOUT MODAL */}
       {activeCheckoutSession && (
         <UpiCheckoutModal
           isOpen={Boolean(activeCheckoutSession)}
           onClose={() => setActiveCheckoutSession(null)}
           contributionId={activeCheckoutSession.contributionId}
           orderId={activeCheckoutSession.orderId}
+          transactionReference={activeCheckoutSession.transactionReference}
+          gateway={activeCheckoutSession.gateway}
           amount={activeCheckoutSession.amount}
           contributorName={activeCheckoutSession.contributorName}
           upiUri={activeCheckoutSession.upiUri}
@@ -1603,8 +1644,16 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
           payeeVpa={activeCheckoutSession.payeeVpa}
           payeeName={activeCheckoutSession.payeeName}
           lang={lang}
-          onPaymentReconciled={() => {
-            // Optional: refresh public view
+          onPaymentReconciled={(details) => {
+            if (details) {
+              setVerifiedContribution({
+                amount: details.amount,
+                orderId: details.orderId,
+                transactionReference: details.transactionReference,
+                utr: details.utr,
+                contributorName: activeCheckoutSession.contributorName,
+              });
+            }
           }}
         />
       )}

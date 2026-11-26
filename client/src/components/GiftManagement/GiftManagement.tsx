@@ -222,6 +222,13 @@ export const GiftManagement: React.FC<GiftManagementProps> = ({ invitationId }) 
             <span>Failed</span>
           </span>
         );
+      case 'CANCELLED':
+        return (
+          <span className="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-rose-50 text-rose-800 border border-rose-200 rounded flex items-center space-x-1">
+            <Ban className="w-3 h-3 text-rose-600" />
+            <span>Cancelled</span>
+          </span>
+        );
       case 'EXPIRED':
         return (
           <span className="px-2 py-0.5 text-[10px] uppercase font-mono font-bold bg-gray-100 text-gray-700 border border-gray-300 rounded flex items-center space-x-1">

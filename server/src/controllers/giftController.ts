@@ -120,6 +120,7 @@ export const getGiftSettings = async (
           break;
         case 'FAILED':
         case 'EXPIRED':
+        case 'CANCELLED':
           failedOrExpiredCount++;
           break;
         default:
@@ -389,9 +390,12 @@ export const initiateGiftContribution = async (
         checkoutUrl = sessionData.checkoutUrl;
       } catch (youpiErr: any) {
         console.error('YouPI session creation error:', youpiErr.message);
-        res.status(400).json({
+        res.status(503).json({
           success: false,
-          message: youpiErr.message || 'Failed to initialize YouPI payment session.',
+          gatewayUnavailable: true,
+          message:
+            youpiErr.message ||
+            'YouPI PG V2 payment gateway is currently unavailable. Please try again later or ask the host to switch to Direct UPI Intent QR.',
         });
         return;
       }
@@ -450,6 +454,7 @@ export const initiateGiftContribution = async (
         amount: Number(result.transaction.amount),
         currency: result.transaction.currency,
         status: result.transaction.status,
+        gateway: result.transaction.gateway,
         checkoutUrl: result.transaction.checkoutUrl,
         upiUri: result.transaction.upiQrString,
         payeeVpa: upiId,
@@ -465,7 +470,150 @@ export const initiateGiftContribution = async (
 };
 
 /**
+ * Shared helper: Format user-friendly status message for all payment lifecycle states
+ */
+function getPaymentStatusMessage(status: string): string {
+  switch (status) {
+    case 'RECONCILED':
+    case 'SUCCESS':
+      return 'Payment successful';
+    case 'OBSERVED_SUCCESS':
+      return 'Payment pending verification';
+    case 'MANUAL_REVIEW':
+      return 'Payment requires manual verification';
+    case 'FAILED':
+      return 'Payment failed';
+    case 'CANCELLED':
+      return 'Payment cancelled';
+    case 'EXPIRED':
+      return 'Payment expired';
+    default:
+      return 'Waiting for payment';
+  }
+}
+
+/**
+ * Shared helper: Validates amount and transitions a PaymentTransaction from a trusted gateway event
+ * Used by both YouPI PG V2 webhook handler and backend status polling reconciliation.
+ */
+async function applyGatewayEventToTransaction(
+  transaction: any,
+  eventData: {
+    event: string;
+    amount?: string | number;
+    amountPaise?: number;
+    utr?: string;
+    rawPayload?: any;
+  }
+): Promise<{ updatedTx: any; amountMismatch: boolean }> {
+  const expectedAmountPaise = Math.round(Number(transaction.amount) * 100);
+  const hasAmount = eventData.amountPaise !== undefined || eventData.amount !== undefined;
+
+  if (hasAmount) {
+    const receivedAmountPaise =
+      eventData.amountPaise !== undefined
+        ? Number(eventData.amountPaise)
+        : Math.round(parseFloat(String(eventData.amount || '0')) * 100);
+
+    if (receivedAmountPaise !== expectedAmountPaise) {
+      const flaggedTx = await prisma.paymentTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'MANUAL_REVIEW',
+          settlementState: 'AMOUNT_MISMATCH',
+          verificationNotes: `Flagged: Amount mismatch. Expected ₹${Number(transaction.amount)}, received ₹${(receivedAmountPaise / 100).toFixed(2)}`,
+        },
+      });
+
+      if (transaction.orderId) {
+        sseService.broadcastStatus(transaction.orderId, {
+          status: 'MANUAL_REVIEW',
+          settlementState: 'AMOUNT_MISMATCH',
+          message: 'Payment flagged: Amount mismatch. Under review.',
+        });
+      }
+
+      return { updatedTx: flaggedTx, amountMismatch: true };
+    }
+  }
+
+  // Prevent downgrading an already verified/reconciled payment
+  if (transaction.status === 'RECONCILED' || transaction.status === 'SUCCESS') {
+    return { updatedTx: transaction, amountMismatch: false };
+  }
+
+  const normalizedEvent = (eventData.event || '').toUpperCase();
+  let targetStatus: any = transaction.status;
+  let targetSettlement = transaction.settlementState;
+  let paidAt: Date | null = transaction.paidAt;
+
+  switch (normalizedEvent) {
+    case 'OBSERVED_SUCCESS':
+      targetStatus = 'OBSERVED_SUCCESS';
+      targetSettlement = 'NOT_RECONCILED';
+      break;
+    case 'RECONCILED':
+      targetStatus = 'RECONCILED';
+      targetSettlement = 'RECONCILED';
+      paidAt = transaction.paidAt || new Date();
+      break;
+    case 'SUCCESS':
+      targetStatus = 'SUCCESS';
+      targetSettlement = 'RECONCILED';
+      paidAt = transaction.paidAt || new Date();
+      break;
+    case 'MANUAL_REVIEW':
+      targetStatus = 'MANUAL_REVIEW';
+      targetSettlement = 'UNDER_REVIEW';
+      break;
+    case 'FAILED':
+      targetStatus = 'FAILED';
+      targetSettlement = 'FAILED';
+      break;
+    case 'CANCELLED':
+      targetStatus = 'CANCELLED';
+      targetSettlement = 'CANCELLED';
+      break;
+    case 'EXPIRED':
+      targetStatus = 'EXPIRED';
+      targetSettlement = 'EXPIRED';
+      break;
+    default:
+      // PENDING / INITIATED / CREATED: leave current non-terminal status unchanged
+      return { updatedTx: transaction, amountMismatch: false };
+  }
+
+  const updatedTx = await prisma.paymentTransaction.update({
+    where: { id: transaction.id },
+    data: {
+      status: targetStatus,
+      settlementState: targetSettlement,
+      utr: eventData.utr || transaction.utr,
+      paidAt,
+      gatewayResponse: eventData.rawPayload
+        ? JSON.stringify(eventData.rawPayload)
+        : transaction.gatewayResponse,
+    },
+  });
+
+  if (transaction.orderId) {
+    sseService.broadcastStatus(transaction.orderId, {
+      status: targetStatus,
+      settlementState: targetSettlement,
+      utr: updatedTx.utr,
+      amount: Number(updatedTx.amount),
+      transactionReference: updatedTx.transactionReference,
+      message: getPaymentStatusMessage(targetStatus),
+    });
+  }
+
+  return { updatedTx, amountMismatch: false };
+}
+
+/**
  * Public: Poll payment status for a contribution
+ * For YouPI PG V2 transactions in non-terminal states, actively queries the YouPI PG API
+ * to reconcile status if a webhook was delayed or missed.
  */
 export const getContributionStatus = async (
   req: Request,
@@ -486,27 +634,38 @@ export const getContributionStatus = async (
       return;
     }
 
-    const tx = contribution.paymentTransaction;
+    let tx = contribution.paymentTransaction;
+    const nonTerminalStates = ['CREATED', 'PENDING', 'INITIATED', 'OBSERVED_SUCCESS'];
 
-    // Build user-friendly message based on strict state machine
-    let userMessage = 'Waiting for payment';
-    if (tx.status === 'OBSERVED_SUCCESS') {
-      userMessage = 'Payment notification received, checking bank records';
-    } else if (tx.status === 'RECONCILED') {
-      userMessage = 'Payment reconciled';
-    } else if (tx.status === 'MANUAL_REVIEW') {
-      userMessage = 'Payment requires manual verification';
-    } else if (tx.status === 'FAILED') {
-      userMessage = 'Payment failed';
-    } else if (tx.status === 'EXPIRED') {
-      userMessage = 'Checkout expired';
+    // Backend status polling reconciliation for YouPI PG V2
+    if (
+      tx.gateway === 'YOUPI_PG_V2' &&
+      tx.gatewayPaymentId &&
+      nonTerminalStates.includes(tx.status)
+    ) {
+      const gatewayStatus = await youpiService.getPaymentStatus(tx.gatewayPaymentId);
+      const remoteEvent = gatewayStatus?.status || gatewayStatus?.event;
+      if (gatewayStatus && remoteEvent) {
+        const { updatedTx } = await applyGatewayEventToTransaction(tx, {
+          event: remoteEvent,
+          amount: gatewayStatus.amount,
+          amountPaise: gatewayStatus.amountPaise,
+          utr: gatewayStatus.utr,
+          rawPayload: gatewayStatus,
+        });
+        tx = updatedTx;
+      }
     }
+
+    const userMessage = getPaymentStatusMessage(tx.status);
 
     res.status(200).json({
       success: true,
       data: {
         contributionId: contribution.id,
         orderId: tx.orderId,
+        transactionReference: tx.transactionReference,
+        gateway: tx.gateway,
         status: tx.status,
         settlementState: tx.settlementState,
         amount: Number(tx.amount),
@@ -623,85 +782,22 @@ export const handleYoupiWebhook = async (
       return;
     }
 
-    // 4. Amount Verification
-    const expectedAmountPaise = Math.round(Number(transaction.amount) * 100);
-    const receivedAmountPaise = amountPaise !== undefined ? Number(amountPaise) : Math.round(parseFloat(amount || '0') * 100);
+    // 4. Amount Verification & State Machine Mapping
+    const { amountMismatch } = await applyGatewayEventToTransaction(transaction, {
+      event,
+      amount,
+      amountPaise,
+      utr,
+      rawPayload: payload,
+    });
 
-    if (receivedAmountPaise !== expectedAmountPaise) {
-      console.error(`Amount mismatch for order ${orderId}: expected ${expectedAmountPaise} paise, received ${receivedAmountPaise} paise`);
-
-      // Flag transaction for manual review due to security mismatch
-      await prisma.paymentTransaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: 'MANUAL_REVIEW',
-          settlementState: 'AMOUNT_MISMATCH',
-          verificationNotes: `Flagged: Amount mismatch. Expected ₹${Number(transaction.amount)}, received ₹${amount}`,
-        },
-      });
-
-      sseService.broadcastStatus(orderId, {
-        status: 'MANUAL_REVIEW',
-        settlementState: 'AMOUNT_MISMATCH',
-        message: 'Payment flagged: Amount mismatch. Under review.',
-      });
-
+    if (amountMismatch) {
+      console.error(`Amount mismatch for order ${orderId}: expected ₹${Number(transaction.amount)}, received ₹${amount}`);
       res.status(400).json({ error: 'Amount mismatch' });
       return;
     }
 
-    // 5. State Machine Mapping
-    // Rules:
-    // - OBSERVED_SUCCESS: Set status OBSERVED_SUCCESS, settlementState NOT_RECONCILED. Never set RECONCILED.
-    // - RECONCILED: Set status RECONCILED, settlementState RECONCILED, paidAt.
-    // - MANUAL_REVIEW: Set status MANUAL_REVIEW.
-    // - FAILED: Set status FAILED.
-    // - EXPIRED: Set status EXPIRED.
-
-    let targetStatus: any = transaction.status;
-    let targetSettlement = transaction.settlementState;
-    let paidAt: Date | null = transaction.paidAt;
-
-    switch (event) {
-      case 'OBSERVED_SUCCESS':
-        targetStatus = 'OBSERVED_SUCCESS';
-        targetSettlement = 'NOT_RECONCILED';
-        break;
-      case 'RECONCILED':
-        targetStatus = 'RECONCILED';
-        targetSettlement = 'RECONCILED';
-        paidAt = new Date();
-        break;
-      case 'MANUAL_REVIEW':
-        targetStatus = 'MANUAL_REVIEW';
-        break;
-      case 'FAILED':
-        targetStatus = 'FAILED';
-        break;
-      case 'EXPIRED':
-        targetStatus = 'EXPIRED';
-        break;
-      case 'SUCCESS':
-        // Counter/COD event
-        targetStatus = 'RECONCILED';
-        targetSettlement = 'COUNTER_SUCCESS';
-        paidAt = new Date();
-        break;
-    }
-
-    // Update Transaction
-    const updatedTx = await prisma.paymentTransaction.update({
-      where: { id: transaction.id },
-      data: {
-        status: targetStatus,
-        settlementState: targetSettlement,
-        utr: utr || transaction.utr,
-        paidAt,
-        gatewayResponse: JSON.stringify(payload),
-      },
-    });
-
-    // Record Delivery ID for Deduplication
+    // 5. Record Delivery ID for Deduplication
     if (deliveryId) {
       await prisma.webhookDelivery.create({
         data: {
@@ -712,14 +808,6 @@ export const handleYoupiWebhook = async (
         },
       });
     }
-
-    // Broadcast SSE update to connected guests
-    sseService.broadcastStatus(orderId, {
-      status: targetStatus,
-      settlementState: targetSettlement,
-      utr: updatedTx.utr,
-      amount: Number(updatedTx.amount),
-    });
 
     res.status(200).json({ received: true });
   } catch (error) {

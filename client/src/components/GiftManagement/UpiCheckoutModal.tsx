@@ -22,6 +22,8 @@ interface UpiCheckoutModalProps {
   onClose: () => void;
   contributionId: string;
   orderId: string;
+  transactionReference?: string;
+  gateway?: string;
   amount: number;
   contributorName: string;
   upiUri?: string | null;
@@ -29,7 +31,14 @@ interface UpiCheckoutModalProps {
   payeeVpa?: string | null;
   payeeName?: string | null;
   lang: 'en' | 'ml';
-  onPaymentReconciled?: () => void;
+  onPaymentReconciled?: (details?: {
+    contributionId: string;
+    orderId: string;
+    transactionReference?: string;
+    utr?: string | null;
+    amount: number;
+    status: PaymentLifecycleStatus;
+  }) => void;
 }
 
 export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
@@ -37,6 +46,8 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
   onClose,
   contributionId,
   orderId,
+  transactionReference,
+  gateway,
   amount,
   contributorName,
   upiUri,
@@ -49,6 +60,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
   const [status, setStatus] = useState<PaymentLifecycleStatus>('PENDING');
   const [settlementState, setSettlementState] = useState<string>('NOT_RECONCILED');
   const [utr, setUtr] = useState<string | null>(null);
+  const [txRef, setTxRef] = useState<string | undefined>(transactionReference);
   const [timeLeft, setTimeLeft] = useState<number>(300); // 5 minutes standard YouPI queue slot
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [isVpaCopied, setIsVpaCopied] = useState<boolean>(false);
@@ -63,6 +75,15 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifiedVerifiedRef = useRef<boolean>(false);
+
+  const isPaidStatus = (s: string) => s === 'RECONCILED' || s === 'SUCCESS';
+  const isTerminalStatus = (s: string) =>
+    s === 'RECONCILED' ||
+    s === 'SUCCESS' ||
+    s === 'FAILED' ||
+    s === 'CANCELLED' ||
+    s === 'EXPIRED';
 
   // Countdown Timer
   useEffect(() => {
@@ -86,6 +107,49 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
   useEffect(() => {
     if (!isOpen || !contributionId) return;
 
+    const applyStatusUpdate = (data: {
+      status?: string;
+      settlementState?: string;
+      utr?: string | null;
+      transactionReference?: string;
+    }) => {
+      if (data.status) {
+        setStatus(data.status as PaymentLifecycleStatus);
+      }
+      if (data.settlementState) {
+        setSettlementState(data.settlementState);
+      }
+      if (data.utr) {
+        setUtr(data.utr);
+      }
+      if (data.transactionReference) {
+        setTxRef(data.transactionReference);
+      }
+      if (data.status && isPaidStatus(data.status) && !notifiedVerifiedRef.current) {
+        notifiedVerifiedRef.current = true;
+        if (onPaymentReconciled) {
+          onPaymentReconciled({
+            contributionId,
+            orderId,
+            transactionReference: data.transactionReference || txRef,
+            utr: data.utr || utr,
+            amount,
+            status: data.status as PaymentLifecycleStatus,
+          });
+        }
+      }
+      if (data.status && isTerminalStatus(data.status)) {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = null;
+        }
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }
+    };
+
     // 1. Establish SSE Connection
     const sseUrl = `${API_BASE}/public/contributions/${contributionId}/status-stream`;
     try {
@@ -95,18 +159,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
       es.addEventListener('payment_status', (e: MessageEvent) => {
         try {
           const data = JSON.parse(e.data);
-          if (data.status) {
-            setStatus(data.status);
-          }
-          if (data.settlementState) {
-            setSettlementState(data.settlementState);
-          }
-          if (data.utr) {
-            setUtr(data.utr);
-          }
-          if (data.status === 'RECONCILED' && onPaymentReconciled) {
-            onPaymentReconciled();
-          }
+          applyStatusUpdate(data);
         } catch (err) {
           console.error('Error parsing SSE payment status:', err);
         }
@@ -125,12 +178,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
       try {
         const res = await api.getContributionStatus(contributionId);
         if (res.success && res.data) {
-          setStatus(res.data.status as PaymentLifecycleStatus);
-          if (res.data.settlementState) setSettlementState(res.data.settlementState);
-          if (res.data.utr) setUtr(res.data.utr);
-          if (res.data.status === 'RECONCILED' && onPaymentReconciled) {
-            onPaymentReconciled();
-          }
+          applyStatusUpdate(res.data);
         }
       } catch {
         // Polling retry
@@ -239,7 +287,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
     }
   };
 
-  const isTerminal = status === 'RECONCILED' || status === 'FAILED' || status === 'EXPIRED';
+  const isTerminal = isTerminalStatus(status);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-charcoal/70 backdrop-blur-xs p-4 animate-fadeIn">
@@ -275,7 +323,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
 
         {/* LIVE STATUS BANNER */}
         <div className="rounded-sm p-3 border transition-all">
-          {status === 'PENDING' && (
+          {(status === 'PENDING' || status === 'CREATED' || status === 'INITIATED') && (
             <div className="bg-amber-50/70 border border-amber-200 text-amber-900 flex items-center space-x-3 p-1">
               <Clock className="w-5 h-5 text-amber-600 animate-spin flex-shrink-0" />
               <div className="text-xs">
@@ -283,9 +331,13 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
                   {lang === 'ml' ? 'പേയ്‌മെന്റിനായി കാത്തിരിക്കുന്നു...' : 'Waiting for payment'}
                 </span>
                 <span className="text-[11px] text-amber-800">
-                  {lang === 'ml'
-                    ? 'QR കോഡ് സ്കാൻ ചെയ്യുകയോ UPI ആപ്പ് തുറക്കുകയോ ചെയ്യുക.'
-                    : 'Scan with any UPI app (GPay, PhonePe, Paytm, BHIM) or tap button below.'}
+                  {gateway === 'YOUPI_PG_V2'
+                    ? lang === 'ml'
+                      ? 'QR കോഡ് സ്കാൻ ചെയ്യുകയോ UPI ആപ്പ് തുറക്കുകയോ ചെയ്യുക. പേയ്‌മെന്റ് സ്ഥിരീകരിക്കുമ്പോൾ സ്വയം അപ്‌ഡേറ്റ് ആകും.'
+                      : 'Scan with any UPI app or tap below. Status will update automatically once verified by gateway.'
+                    : lang === 'ml'
+                    ? 'QR കോഡ് സ്കാൻ ചെയ്ത് പണമടച്ച ശേഷം താഴെ 12 അക്ക UTR നമ്പർ നൽകുക.'
+                    : 'Scan with any UPI app, then submit your 12-digit Bank UTR below for host verification.'}
                 </span>
               </div>
             </div>
@@ -297,31 +349,34 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
               <div className="text-xs">
                 <span className="font-bold block text-sky-900">
                   {lang === 'ml'
-                    ? 'പേയ്‌മെന്റ് അറിയിപ്പ് ലഭിച്ചു, ബാങ്ക് രേഖകൾ പരിശോധിക്കുന്നു...'
-                    : 'Payment notification received, checking bank records'}
+                    ? 'പേയ്‌മെന്റ് സ്ഥിരീകരണം കാത്തിരിക്കുന്നു'
+                    : 'Payment Pending Verification'}
                 </span>
                 <span className="text-[11px] text-sky-800">
-                  {utr ? `Ref UTR: ${utr} | ` : ''}
+                  {utr ? `Ref UTR: ${utr} · ` : ''}
                   {lang === 'ml'
-                    ? 'ബാങ്ക് അറിയിപ്പ് രേഖപ്പെടുത്തി. അന്തിമ അക്കൗണ്ട് സെറ്റിൽമെന്റിനായി കാത്തിരിക്കുന്നു.'
-                    : 'Bank alert captured. Awaiting official bank statement reconciliation.'}
+                    ? 'താങ്കളുടെ റഫറൻസ് രേഖപ്പെടുത്തി. ആതിഥേയർ ബാങ്ക് രേഖകൾ പരിശോധിച്ച് സ്ഥിരീകരിക്കുന്നതാണ്.'
+                    : 'Reference recorded. Awaiting host or bank statement verification before marking as paid.'}
                 </span>
               </div>
             </div>
           )}
 
-          {status === 'RECONCILED' && (
+          {(status === 'RECONCILED' || status === 'SUCCESS') && (
             <div className="bg-emerald-50 border border-emerald-300 text-emerald-950 flex items-center space-x-3 p-1">
               <CheckCircle2 className="w-5 h-5 text-emerald-700 flex-shrink-0" />
-              <div className="text-xs">
+              <div className="text-xs space-y-0.5">
                 <span className="font-bold block text-emerald-900">
-                  {lang === 'ml' ? 'പേയ്‌മെന്റ് വിജയകരമായി സ്ഥിരീകരിച്ചു' : 'Payment reconciled'}
+                  {lang === 'ml' ? 'പേയ്‌മെന്റ് വിജയകരമായി പൂർത്തിയായി' : 'Payment Successful'}
                 </span>
-                <span className="text-[11px] text-emerald-800">
-                  {utr ? `Bank Ref: ${utr} | ` : ''}
+                <span className="text-[11px] text-emerald-800 block">
+                  ₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ·{' '}
+                  {utr ? `UTR: ${utr}` : txRef ? `Ref: ${txRef}` : `Order: ${orderId}`}
+                </span>
+                <span className="text-[11px] text-emerald-800 block">
                   {lang === 'ml'
                     ? 'താങ്കളുടെ സ്നേഹപൂർവ്വമായ സംഭാവനയ്ക്കും അനുഗ്രഹങ്ങൾക്കും നന്ദി!'
-                    : 'Your blessings and contribution have been reconciled with the couple!'}
+                    : 'Your contribution has been verified and confirmed for the couple!'}
                 </span>
               </div>
             </div>
@@ -332,12 +387,12 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
               <HelpCircle className="w-5 h-5 text-purple-700 flex-shrink-0" />
               <div className="text-xs">
                 <span className="font-bold block text-purple-900">
-                  {lang === 'ml' ? 'മാനുവൽ പരിശോധന ആവശ്യമാണ്' : 'Payment held for manual review'}
+                  {lang === 'ml' ? 'പേയ്‌മെന്റ് സ്ഥിരീകരണം കാത്തിരിക്കുന്നു' : 'Payment Pending Verification'}
                 </span>
                 <span className="text-[11px] text-purple-800">
                   {lang === 'ml'
                     ? 'തുക അല്ലെങ്കിൽ റഫറൻസിൽ വ്യത്യാസം കണ്ടതിനാൽ ആതിഥേയർ നേരിട്ട് പരിശോധിക്കുന്നതാണ്.'
-                    : 'The transaction requires review by the wedding hosts.'}
+                    : 'The transaction requires manual review by the wedding hosts.'}
                 </span>
               </div>
             </div>
@@ -348,12 +403,28 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
               <AlertCircle className="w-5 h-5 text-rose-700 flex-shrink-0" />
               <div className="text-xs">
                 <span className="font-bold block text-rose-900">
-                  {lang === 'ml' ? 'പേയ്‌മെന്റ് പരാജയപ്പെട്ടു' : 'Payment failed'}
+                  {lang === 'ml' ? 'പേയ്‌മെന്റ് പരാജയപ്പെട്ടു' : 'Payment Failed'}
                 </span>
                 <span className="text-[11px] text-rose-800">
                   {lang === 'ml'
                     ? 'ഇടപാട് പൂർത്തിയാക്കാൻ സാധിച്ചില്ല. ദയവായി വീണ്ടും ശ്രമിക്കുക.'
-                    : 'The transaction could not be verified. Please retry.'}
+                    : 'The transaction could not be completed. Please retry.'}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {status === 'CANCELLED' && (
+            <div className="bg-rose-50/70 border border-rose-200 text-rose-950 flex items-center space-x-3 p-1">
+              <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0" />
+              <div className="text-xs">
+                <span className="font-bold block text-rose-900">
+                  {lang === 'ml' ? 'പേയ്‌മെന്റ് റദ്ദാക്കി' : 'Payment Cancelled'}
+                </span>
+                <span className="text-[11px] text-rose-800">
+                  {lang === 'ml'
+                    ? 'ഈ പേയ്‌മെന്റ് ഇടപാട് റദ്ദാക്കപ്പെട്ടു. ആവശ്യമെങ്കിൽ വീണ്ടും ആരംഭിക്കാം.'
+                    : 'This payment was cancelled. You may close and initiate a new contribution.'}
                 </span>
               </div>
             </div>
@@ -364,7 +435,7 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
               <Clock className="w-5 h-5 text-gray-500 flex-shrink-0" />
               <div className="text-xs">
                 <span className="font-bold block text-gray-900">
-                  {lang === 'ml' ? 'ചെക്ക്ഔട്ട് കാലാവധി കഴിഞ്ഞു' : 'Checkout expired'}
+                  {lang === 'ml' ? 'പേയ്‌മെന്റ് സമയം കഴിഞ്ഞു' : 'Payment Expired'}
                 </span>
                 <span className="text-[11px] text-gray-600">
                   {lang === 'ml'
