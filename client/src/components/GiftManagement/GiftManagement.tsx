@@ -516,6 +516,16 @@ export const GiftManagement: React.FC<GiftManagementProps> = ({ invitationId }) 
                       <option value="direct_upi">Direct UPI Intent QR</option>
                       <option value="razorpay">Razorpay (Regulated Aggregator)</option>
                     </select>
+                    {settings.paymentConfig?.provider === 'direct_upi' && (
+                      <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-sm p-1.5 mt-1.5 leading-relaxed">
+                        Direct UPI Intent QR does not support automatic payment verification. To automatically confirm guest payments, configure a gateway that supports automatic verification (such as YouPI PG V2).
+                      </p>
+                    )}
+                    {settings.paymentConfig?.provider === 'razorpay' && (
+                      <p className="text-[10px] text-amber-800 bg-amber-50 border border-amber-200 rounded-sm p-1.5 mt-1.5 leading-relaxed">
+                        Razorpay automatic verification is not yet wired on the backend. Use YouPI PG V2 for automatic verification.
+                      </p>
+                    )}
                   </div>
 
                   <div>

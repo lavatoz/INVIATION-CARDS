@@ -11,8 +11,6 @@ import {
   Eye,
   X,
   Copy,
-  ChevronRight,
-  Send,
 } from 'lucide-react';
 import { api, API_BASE } from '../../services/api';
 import { PaymentLifecycleStatus } from '../../types';
@@ -66,12 +64,6 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
   const [isVpaCopied, setIsVpaCopied] = useState<boolean>(false);
   const [isLaunchingApp, setIsLaunchingApp] = useState<boolean>(false);
   const [appLaunchFeedback, setAppLaunchFeedback] = useState<string | null>(null);
-
-  // Guest UTR self-reporting
-  const [showUtrInput, setShowUtrInput] = useState<boolean>(false);
-  const [guestUtr, setGuestUtr] = useState<string>('');
-  const [isSubmittingUtr, setIsSubmittingUtr] = useState<boolean>(false);
-  const [utrFeedback, setUtrFeedback] = useState<string | null>(null);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -263,30 +255,6 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
     }, 2500);
   };
 
-  const handleGuestUtrSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!guestUtr.trim() || guestUtr.trim().length < 6) {
-      setUtrFeedback(lang === 'ml' ? 'സാധുവായ 12 അക്ക UTR റഫറൻസ് നൽകുക.' : 'Enter a valid bank UTR reference.');
-      return;
-    }
-
-    setIsSubmittingUtr(true);
-    setUtrFeedback(null);
-    try {
-      const res = await api.submitGuestUtr(contributionId, guestUtr.trim());
-      if (res.success) {
-        setUtr(guestUtr.trim());
-        setStatus('OBSERVED_SUCCESS');
-        setShowUtrInput(false);
-        setUtrFeedback(lang === 'ml' ? 'റഫറൻസ് രേഖപ്പെടുത്തി. ബാങ്ക് സ്റ്റേറ്റ്മെന്റുമായി ഒത്തുനോക്കുന്നതാണ്.' : 'Reference submitted! Will be reconciled with host bank statement.');
-      }
-    } catch (err: any) {
-      setUtrFeedback(err.message || 'Failed to submit reference');
-    } finally {
-      setIsSubmittingUtr(false);
-    }
-  };
-
   const isTerminal = isTerminalStatus(status);
 
   return (
@@ -334,10 +302,10 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
                   {gateway === 'YOUPI_PG_V2'
                     ? lang === 'ml'
                       ? 'QR കോഡ് സ്കാൻ ചെയ്യുകയോ UPI ആപ്പ് തുറക്കുകയോ ചെയ്യുക. പേയ്‌മെന്റ് സ്ഥിരീകരിക്കുമ്പോൾ സ്വയം അപ്‌ഡേറ്റ് ആകും.'
-                      : 'Scan with any UPI app or tap below. Status will update automatically once verified by gateway.'
+                      : 'Scan with any UPI app or tap below. Status is checked automatically by the payment gateway.'
                     : lang === 'ml'
-                    ? 'QR കോഡ് സ്കാൻ ചെയ്ത് പണമടച്ച ശേഷം താഴെ 12 അക്ക UTR നമ്പർ നൽകുക.'
-                    : 'Scan with any UPI app, then submit your 12-digit Bank UTR below for host verification.'}
+                    ? 'QR കോഡ് സ്കാൻ ചെയ്ത് പണമയയ്ക്കുക. ശ്രദ്ധിക്കുക: Direct UPI QR-ൽ ഓട്ടോമാറ്റിക് പേയ്‌മെന്റ് സ്ഥിരീകരണം ലഭ്യമല്ല.'
+                    : 'Scan with any UPI app or tap below. Note: Direct UPI QR does not support automatic payment verification.'}
                 </span>
               </div>
             </div>
@@ -570,48 +538,6 @@ export const UpiCheckoutModal: React.FC<UpiCheckoutModalProps> = ({
                 ? lang === 'ml' ? 'ലിങ്ക് പകർത്തി!' : 'UPI Link Copied!'
                 : lang === 'ml' ? 'പൂർണ്ണ UPI ലിങ്ക് കോപ്പി ചെയ്യുക' : 'Copy Full Payment Link'}
             </button>
-          )}
-
-          {/* Guest Self-Report UTR Option */}
-          {!isTerminal && !showUtrInput && (
-            <div className="pt-1 text-center">
-              <button
-                type="button"
-                onClick={() => setShowUtrInput(true)}
-                className="text-[11px] text-forest font-semibold hover:underline flex items-center justify-center mx-auto space-x-1"
-              >
-                <span>{lang === 'ml' ? 'പണം നൽകിക്കഴിഞ്ഞോ? ബാങ്ക് UTR നൽകുക' : 'Already transferred? Submit 12-digit Bank UTR'}</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-          )}
-
-          {/* Expandable Guest UTR Input */}
-          {!isTerminal && showUtrInput && (
-            <form onSubmit={handleGuestUtrSubmit} className="p-3 bg-sand/20 border border-sand-border rounded-sm space-y-2">
-              <label className="block text-[11px] font-semibold text-charcoal">
-                {lang === 'ml' ? 'ബാങ്ക് UTR / റഫറൻസ് നമ്പർ (12 അക്കങ്ങൾ)' : 'Enter 12-Digit Bank UTR / Reference No.'}
-              </label>
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  required
-                  value={guestUtr}
-                  onChange={(e) => setGuestUtr(e.target.value)}
-                  placeholder="e.g. 412356789012"
-                  className="flex-1 px-2.5 py-1.5 bg-ivory border border-sand-border rounded-sm text-xs font-mono text-charcoal"
-                />
-                <button
-                  type="submit"
-                  disabled={isSubmittingUtr}
-                  className="px-3 py-1.5 bg-forest text-ivory text-xs font-semibold rounded-sm hover:bg-forest-light flex items-center space-x-1"
-                >
-                  <Send className="w-3 h-3" />
-                  <span>{isSubmittingUtr ? '...' : (lang === 'ml' ? 'സമർപ്പിക്കുക' : 'Submit')}</span>
-                </button>
-              </div>
-              {utrFeedback && <p className="text-[10px] text-amber-800">{utrFeedback}</p>}
-            </form>
           )}
 
           {/* Terminal Actions (Done / Close) */}
