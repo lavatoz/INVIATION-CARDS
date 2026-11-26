@@ -36,11 +36,14 @@ const CATEGORIES = [
   'Other Services',
 ];
 
+const CUSTOM_CATEGORY_VALUE = '__CUSTOM__';
+
 export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitationId }) => {
   const [sponsors, setSponsors] = useState<WeddingSponsor[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [customCategoryMode, setCustomCategoryMode] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Form state for adding/editing a sponsor
@@ -126,25 +129,30 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
   // Save (Add or Update)
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!editingSponsor?.nameEn || !editingSponsor?.category) {
+    const trimmedCategory = editingSponsor?.category?.trim() || '';
+    if (!editingSponsor?.nameEn?.trim() || !trimmedCategory) {
       triggerFeedback('error', 'Company name and category are required.');
       return;
     }
 
+    const payload = { ...editingSponsor, category: trimmedCategory };
+
     setIsSaving(true);
     try {
       if (editingSponsor.id) {
-        const res = await api.updateSponsor(invitationId, editingSponsor.id, editingSponsor);
+        const res = await api.updateSponsor(invitationId, editingSponsor.id, payload);
         if (res.success) {
           triggerFeedback('success', 'Sponsor updated successfully.');
           setEditingSponsor(null);
+          setCustomCategoryMode(false);
           loadSponsors();
         }
       } else {
-        const res = await api.addSponsor(invitationId, editingSponsor);
+        const res = await api.addSponsor(invitationId, payload);
         if (res.success) {
           triggerFeedback('success', 'Sponsor added successfully.');
           setEditingSponsor(null);
+          setCustomCategoryMode(false);
           loadSponsors();
         }
       }
@@ -234,7 +242,8 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
           </button>
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              setCustomCategoryMode(false);
               setEditingSponsor({
                 nameEn: '',
                 nameMl: '',
@@ -248,8 +257,8 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                 discountOfferEn: '',
                 discountOfferMl: '',
                 isActive: true,
-              })
-            }
+              });
+            }}
             className="px-4 py-2 bg-forest text-ivory text-xs uppercase tracking-widest font-semibold rounded-sm hover:bg-forest-light flex items-center space-x-1"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -307,8 +316,24 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                 Service Category *
               </label>
               <select
-                value={editingSponsor.category || CATEGORIES[0]}
-                onChange={(e) => setEditingSponsor((prev) => ({ ...prev, category: e.target.value }))}
+                value={
+                  customCategoryMode || (editingSponsor.category && !CATEGORIES.includes(editingSponsor.category))
+                    ? CUSTOM_CATEGORY_VALUE
+                    : editingSponsor.category || CATEGORIES[0]
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === CUSTOM_CATEGORY_VALUE) {
+                    setCustomCategoryMode(true);
+                    setEditingSponsor((prev) => ({
+                      ...prev,
+                      category: prev?.category && !CATEGORIES.includes(prev.category) ? prev.category : '',
+                    }));
+                  } else {
+                    setCustomCategoryMode(false);
+                    setEditingSponsor((prev) => ({ ...prev, category: val }));
+                  }
+                }}
                 className="w-full px-3 py-2 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal focus:outline-none focus:border-forest"
               >
                 {CATEGORIES.map((cat) => (
@@ -316,7 +341,19 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                     {cat}
                   </option>
                 ))}
+                <option value={CUSTOM_CATEGORY_VALUE}>Custom</option>
               </select>
+              {(customCategoryMode || (editingSponsor.category !== undefined && editingSponsor.category !== null && !CATEGORIES.includes(editingSponsor.category))) && (
+                <input
+                  type="text"
+                  value={editingSponsor.category || ''}
+                  onChange={(e) => setEditingSponsor((prev) => ({ ...prev, category: e.target.value }))}
+                  placeholder="Enter custom category (e.g. Florist, Mehndi Artist, Jewelry)"
+                  className="mt-2 w-full px-3 py-2 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal focus:outline-none focus:border-forest"
+                  required
+                  autoFocus
+                />
+              )}
             </div>
           </div>
 
@@ -609,7 +646,11 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                 </button>
                 <button
                   type="button"
-                  onClick={() => setEditingSponsor(s)}
+                  onClick={() => {
+                    const isCustom = Boolean(s.category && !CATEGORIES.includes(s.category));
+                    setCustomCategoryMode(isCustom);
+                    setEditingSponsor(s);
+                  }}
                   className="p-1.5 text-charcoal-muted hover:text-forest"
                   title="Edit"
                 >
