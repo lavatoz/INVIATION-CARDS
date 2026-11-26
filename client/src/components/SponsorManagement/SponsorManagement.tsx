@@ -24,7 +24,7 @@ interface SponsorManagementProps {
   invitationId: string;
 }
 
-const CATEGORIES = [
+const PREDEFINED_CATEGORIES = [
   'Photography',
   'Videography',
   'Catering',
@@ -33,17 +33,17 @@ const CATEGORIES = [
   'Wedding Planning',
   'Transportation',
   'Sound and Lighting',
-  'Other Services',
 ];
 
-const CUSTOM_CATEGORY_VALUE = '__CUSTOM__';
+const OTHER_SERVICES_OPTION = 'Other Services';
+const CATEGORIES = [...PREDEFINED_CATEGORIES, OTHER_SERVICES_OPTION];
 
 export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitationId }) => {
   const [sponsors, setSponsors] = useState<WeddingSponsor[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [customCategoryMode, setCustomCategoryMode] = useState<boolean>(false);
+  const [isOtherService, setIsOtherService] = useState<boolean>(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Form state for adding/editing a sponsor
@@ -130,12 +130,24 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
   const handleSave = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const trimmedCategory = editingSponsor?.category?.trim() || '';
-    if (!editingSponsor?.nameEn?.trim() || !trimmedCategory) {
-      triggerFeedback('error', 'Company name and category are required.');
+    if (!editingSponsor?.nameEn?.trim()) {
+      triggerFeedback('error', 'Company name is required.');
+      return;
+    }
+    if (isOtherService && (!trimmedCategory || trimmedCategory === OTHER_SERVICES_OPTION)) {
+      triggerFeedback('error', 'Please enter a custom service name.');
+      return;
+    }
+    if (!trimmedCategory) {
+      triggerFeedback('error', 'Service category is required.');
       return;
     }
 
-    const payload = { ...editingSponsor, category: trimmedCategory };
+    const payload = {
+      ...editingSponsor,
+      category: trimmedCategory,
+      sponsorType: trimmedCategory,
+    };
 
     setIsSaving(true);
     try {
@@ -144,7 +156,7 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
         if (res.success) {
           triggerFeedback('success', 'Sponsor updated successfully.');
           setEditingSponsor(null);
-          setCustomCategoryMode(false);
+          setIsOtherService(false);
           loadSponsors();
         }
       } else {
@@ -152,7 +164,7 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
         if (res.success) {
           triggerFeedback('success', 'Sponsor added successfully.');
           setEditingSponsor(null);
-          setCustomCategoryMode(false);
+          setIsOtherService(false);
           loadSponsors();
         }
       }
@@ -243,7 +255,7 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
           <button
             type="button"
             onClick={() => {
-              setCustomCategoryMode(false);
+              setIsOtherService(false);
               setEditingSponsor({
                 nameEn: '',
                 nameMl: '',
@@ -317,20 +329,21 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
               </label>
               <select
                 value={
-                  customCategoryMode || (editingSponsor.category && !CATEGORIES.includes(editingSponsor.category))
-                    ? CUSTOM_CATEGORY_VALUE
+                  isOtherService || (editingSponsor.category && !PREDEFINED_CATEGORIES.includes(editingSponsor.category))
+                    ? OTHER_SERVICES_OPTION
                     : editingSponsor.category || CATEGORIES[0]
                 }
                 onChange={(e) => {
                   const val = e.target.value;
-                  if (val === CUSTOM_CATEGORY_VALUE) {
-                    setCustomCategoryMode(true);
+                  if (val === OTHER_SERVICES_OPTION) {
+                    setIsOtherService(true);
                     setEditingSponsor((prev) => ({
                       ...prev,
-                      category: prev?.category && !CATEGORIES.includes(prev.category) ? prev.category : '',
+                      category:
+                        prev?.category && !CATEGORIES.includes(prev.category) ? prev.category : '',
                     }));
                   } else {
-                    setCustomCategoryMode(false);
+                    setIsOtherService(false);
                     setEditingSponsor((prev) => ({ ...prev, category: val }));
                   }
                 }}
@@ -341,18 +354,31 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                     {cat}
                   </option>
                 ))}
-                <option value={CUSTOM_CATEGORY_VALUE}>Custom</option>
               </select>
-              {(customCategoryMode || (editingSponsor.category !== undefined && editingSponsor.category !== null && !CATEGORIES.includes(editingSponsor.category))) && (
-                <input
-                  type="text"
-                  value={editingSponsor.category || ''}
-                  onChange={(e) => setEditingSponsor((prev) => ({ ...prev, category: e.target.value }))}
-                  placeholder="Enter custom category (e.g. Florist, Mehndi Artist, Jewelry)"
-                  className="mt-2 w-full px-3 py-2 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal focus:outline-none focus:border-forest"
-                  required
-                  autoFocus
-                />
+              {(isOtherService ||
+                (editingSponsor.category !== undefined &&
+                  editingSponsor.category !== null &&
+                  !PREDEFINED_CATEGORIES.includes(editingSponsor.category))) && (
+                <div className="mt-2.5">
+                  <label className="block text-xs uppercase tracking-wider text-charcoal font-semibold mb-1">
+                    Custom Service Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={
+                      editingSponsor.category === OTHER_SERVICES_OPTION
+                        ? ''
+                        : editingSponsor.category || ''
+                    }
+                    onChange={(e) =>
+                      setEditingSponsor((prev) => ({ ...prev, category: e.target.value }))
+                    }
+                    placeholder="Enter your service name"
+                    className="w-full px-3 py-2 bg-ivory border border-sand-border rounded-sm text-xs text-charcoal focus:outline-none focus:border-forest"
+                    required
+                    autoFocus
+                  />
+                </div>
               )}
             </div>
           </div>
@@ -647,8 +673,10 @@ export const SponsorManagement: React.FC<SponsorManagementProps> = ({ invitation
                 <button
                   type="button"
                   onClick={() => {
-                    const isCustom = Boolean(s.category && !CATEGORIES.includes(s.category));
-                    setCustomCategoryMode(isCustom);
+                    const isCustom = Boolean(
+                      s.category && !PREDEFINED_CATEGORIES.includes(s.category)
+                    );
+                    setIsOtherService(isCustom);
                     setEditingSponsor(s);
                   }}
                   className="p-1.5 text-charcoal-muted hover:text-forest"

@@ -133,7 +133,7 @@ export const updateSponsor = async (
         nameEn: data.nameEn ?? existing.nameEn,
         nameMl: data.nameMl !== undefined ? (data.nameMl || null) : existing.nameMl,
         category: data.category ?? existing.category,
-        sponsorType: data.sponsorType ?? existing.sponsorType,
+        sponsorType: data.sponsorType ?? data.category ?? existing.sponsorType,
         logoUrl: data.logoUrl !== undefined ? (data.logoUrl || null) : existing.logoUrl,
         websiteUrl: data.websiteUrl !== undefined ? (data.websiteUrl || null) : existing.websiteUrl,
         descriptionEn: data.descriptionEn !== undefined ? (data.descriptionEn || null) : existing.descriptionEn,
