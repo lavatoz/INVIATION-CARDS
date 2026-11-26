@@ -321,7 +321,7 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
       {activeTab === 'registrations' && (
         <div className="space-y-6">
           {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 bg-ivory border border-sand-border rounded-sm text-center shadow-xs">
               <div className="w-8 h-8 mx-auto rounded-full bg-sand/30 flex items-center justify-center text-forest mb-2">
                 <Users className="w-4 h-4" />
@@ -357,6 +357,18 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
                 Groom's Side Count
               </p>
             </div>
+
+            <div className="p-4 bg-ivory border border-sand-border rounded-sm text-center shadow-xs">
+              <div className="w-8 h-8 mx-auto rounded-full bg-amber-50 flex items-center justify-center text-amber-800 mb-2">
+                <Users className="w-4 h-4" />
+              </div>
+              <p className="text-3xl font-serif font-bold text-amber-900">
+                {regSummary ? regSummary.commonCount : 0}
+              </p>
+              <p className="text-[10px] uppercase tracking-widest text-charcoal-muted mt-1 font-semibold">
+                Common Friends Count
+              </p>
+            </div>
           </div>
 
           {/* Action & Filter Toolbar */}
@@ -374,7 +386,7 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
               </div>
 
               {/* Side Filter Pills */}
-              <div className="flex items-center space-x-1">
+              <div className="flex flex-wrap items-center gap-1">
                 <button
                   type="button"
                   onClick={() => setRegFilterSide('')}
@@ -407,6 +419,17 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
                   }`}
                 >
                   Groom ({regSummary?.groomCount || 0})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegFilterSide('COMMON')}
+                  className={`px-3 py-1.5 text-xs rounded-sm font-medium transition-colors ${
+                    regFilterSide === 'COMMON'
+                      ? 'bg-forest text-ivory'
+                      : 'bg-ivory border border-sand-border text-charcoal hover:bg-sand/30'
+                  }`}
+                >
+                  Common Friends ({regSummary?.commonCount || 0})
                 </button>
               </div>
             </div>
@@ -464,9 +487,13 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
                             <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-rose-50 text-rose-900 border border-rose-200">
                               <span>Bride's Side</span>
                             </span>
-                          ) : (
+                          ) : reg.side === 'GROOM' ? (
                             <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
                               <span>Groom's Side</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                              <span>Common Friend</span>
                             </span>
                           )}
                         </td>
@@ -569,9 +596,13 @@ export const GuestManagement: React.FC<GuestManagementProps> = ({ invitationId }
                       <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-rose-50 text-rose-900 border border-rose-200">
                         <span>Bride's Side</span>
                       </span>
-                    ) : (
+                    ) : selectedRegDetail.side === 'GROOM' ? (
                       <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-emerald-50 text-emerald-900 border border-emerald-200">
                         <span>Groom's Side</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded text-[10px] uppercase font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                        <span>Common Friend (Both)</span>
                       </span>
                     )}
                     <span className="text-xs text-charcoal-muted font-mono">

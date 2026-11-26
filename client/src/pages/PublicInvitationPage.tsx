@@ -72,7 +72,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
   const [guestRegName, setGuestRegName] = useState<string>('');
   const [guestRegAddress, setGuestRegAddress] = useState<string>('');
   const [guestRegMobile, setGuestRegMobile] = useState<string>('');
-  const [guestRegSide, setGuestRegSide] = useState<'BRIDE' | 'GROOM' | ''>('');
+  const [guestRegSide, setGuestRegSide] = useState<'BRIDE' | 'GROOM' | 'COMMON' | ''>('');
   const [guestRegNote, setGuestRegNote] = useState<string>('');
   const [isSubmittingGuestReg, setIsSubmittingGuestReg] = useState<boolean>(false);
   const [guestRegFeedback, setGuestRegFeedback] = useState<{
@@ -96,8 +96,8 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
         success: false,
         message:
           lang === 'ml'
-            ? 'വരന്റെ ഭാഗമാണോ വധുവിന്റെ ഭാഗമാണോ എന്ന് തിരഞ്ഞെടുക്കുക.'
-            : "Please specify whether you are joining from Bride's side or Groom's side.",
+            ? 'വധുവിന്റെ ഭാഗം, വരന്റെ ഭാഗം, അല്ലെങ്കിൽ പൊതു സുഹൃത്ത് എന്ന് തിരഞ്ഞെടുക്കുക.'
+            : "Please specify whether you are joining from Bride's side, Groom's side, or as a Common Friend.",
       });
       return;
     }
@@ -117,7 +117,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
         fullName: guestRegName.trim(),
         address: guestRegAddress.trim() || null,
         mobileNumber: guestRegMobile.trim() || null,
-        side: guestRegSide as 'BRIDE' | 'GROOM',
+        side: guestRegSide as 'BRIDE' | 'GROOM' | 'COMMON',
         note: guestRegNote.trim() || null,
       });
 
@@ -1073,7 +1073,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                     ? 'ഏതു ഭാഗത്തുനിന്നാണ് താങ്കൾ പങ്കെടുക്കുന്നത്? *'
                     : 'Which side are you joining us from? *'}
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     type="button"
                     onClick={() => setGuestRegSide('BRIDE')}
@@ -1083,7 +1083,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                         : 'bg-ivory border-sand-border text-charcoal hover:border-forest/40'
                     }`}
                   >
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 pr-2">
                       <span className="text-xs font-serif font-bold block">
                         {lang === 'ml' ? "വധുവിന്റെ ഭാഗം (Bride's Side)" : "Bride's Side"}
                       </span>
@@ -1092,7 +1092,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                       </span>
                     </div>
                     <div
-                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
                         guestRegSide === 'BRIDE' ? 'border-forest bg-forest text-ivory' : 'border-sand-border bg-white'
                       }`}
                     >
@@ -1109,7 +1109,7 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                         : 'bg-ivory border-sand-border text-charcoal hover:border-forest/40'
                     }`}
                   >
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 pr-2">
                       <span className="text-xs font-serif font-bold block">
                         {lang === 'ml' ? "വരന്റെ ഭാഗം (Groom's Side)" : "Groom's Side"}
                       </span>
@@ -1118,11 +1118,37 @@ export const PublicInvitationPage: React.FC<PublicInvitationPageProps> = ({
                       </span>
                     </div>
                     <div
-                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
                         guestRegSide === 'GROOM' ? 'border-forest bg-forest text-ivory' : 'border-sand-border bg-white'
                       }`}
                     >
                       {guestRegSide === 'GROOM' && <span className="w-1.5 h-1.5 rounded-full bg-ivory"></span>}
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setGuestRegSide('COMMON')}
+                    className={`p-3.5 border rounded-sm text-left flex items-center justify-between transition-all cursor-pointer ${
+                      guestRegSide === 'COMMON'
+                        ? 'bg-sand/40 border-forest text-forest shadow-xs'
+                        : 'bg-ivory border-sand-border text-charcoal hover:border-forest/40'
+                    }`}
+                  >
+                    <div className="space-y-0.5 pr-2">
+                      <span className="text-xs font-serif font-bold block">
+                        {lang === 'ml' ? 'പൊതു സുഹൃത്ത് (Common Friend)' : 'Common Friend'}
+                      </span>
+                      <span className="text-[10px] text-charcoal-muted block">
+                        {lang === 'ml' ? 'വധുവിന്റെയും വരന്റെയും സുഹൃത്ത്' : 'Both Bride & Groom'}
+                      </span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                        guestRegSide === 'COMMON' ? 'border-forest bg-forest text-ivory' : 'border-sand-border bg-white'
+                      }`}
+                    >
+                      {guestRegSide === 'COMMON' && <span className="w-1.5 h-1.5 rounded-full bg-ivory"></span>}
                     </div>
                   </button>
                 </div>

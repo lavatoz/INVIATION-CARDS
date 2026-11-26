@@ -581,7 +581,7 @@ export const api = {
     fullName: string;
     address?: string | null;
     mobileNumber?: string | null;
-    side: 'BRIDE' | 'GROOM';
+    side: 'BRIDE' | 'GROOM' | 'COMMON';
     note?: string | null;
   }) =>
     request<{ success: boolean; message: string }>(
@@ -597,13 +597,14 @@ export const api = {
           total: number;
           brideCount: number;
           groomCount: number;
+          commonCount: number;
         };
         registrations: Array<{
           id: string;
           fullName: string;
           address?: string | null;
           mobileNumber?: string | null;
-          side: 'BRIDE' | 'GROOM';
+          side: 'BRIDE' | 'GROOM' | 'COMMON';
           note?: string | null;
           createdAt: string;
         }>;

@@ -31,8 +31,10 @@ const publicGuestRegistrationSchema = z.object({
       (val) => !val || phoneRegex.test(val),
       'Please enter a valid mobile number'
     ),
-  side: z.enum(['BRIDE', 'GROOM'], {
-    errorMap: () => ({ message: "Please specify whether you are joining from Bride's side or Groom's side." }),
+  side: z.enum(['BRIDE', 'GROOM', 'COMMON'], {
+    errorMap: () => ({
+      message: "Please specify whether you are joining from Bride's side, Groom's side, or as a Common Friend.",
+    }),
   }),
   note: z
     .string()
@@ -182,7 +184,7 @@ export const getGuestRegistrations = async (
     const { invitationId } = req.params;
 
     // Run parallel count queries and list query
-    const [total, brideCount, groomCount, registrations] = await Promise.all([
+    const [total, brideCount, groomCount, commonCount, registrations] = await Promise.all([
       prisma.guestRegistration.count({
         where: { invitationId },
       }),
@@ -191,6 +193,9 @@ export const getGuestRegistrations = async (
       }),
       prisma.guestRegistration.count({
         where: { invitationId, side: 'GROOM' },
+      }),
+      prisma.guestRegistration.count({
+        where: { invitationId, side: 'COMMON' },
       }),
       prisma.guestRegistration.findMany({
         where: { invitationId },
@@ -214,6 +219,7 @@ export const getGuestRegistrations = async (
           total,
           brideCount,
           groomCount,
+          commonCount,
         },
         registrations,
       },
@@ -287,7 +293,11 @@ export const exportGuestRegistrationsCsv = async (
     const headers = ['Full Name', 'Joining Side', 'Mobile Number', 'Address', 'Note for Couple', 'Registration Date'];
     const rows = registrations.map((r) => [
       sanitizeCsvCell(r.fullName),
-      r.side === 'BRIDE' ? "Bride's Side" : "Groom's Side",
+      r.side === 'BRIDE'
+        ? "Bride's Side"
+        : r.side === 'GROOM'
+        ? "Groom's Side"
+        : 'Common Friend (Both)',
       sanitizeCsvCell(r.mobileNumber),
       sanitizeCsvCell(r.address),
       sanitizeCsvCell(r.note),

@@ -581,7 +581,7 @@ export interface InitiateGiftResponse {
 
 // --- Private Guest Registration Types ---
 
-export type GuestSide = 'BRIDE' | 'GROOM';
+export type GuestSide = 'BRIDE' | 'GROOM' | 'COMMON';
 
 export interface GuestRegistration {
   id: string;
@@ -597,6 +597,7 @@ export interface GuestRegistrationSummary {
   total: number;
   brideCount: number;
   groomCount: number;
+  commonCount: number;
 }
 
 export interface GuestRegistrationPayload {

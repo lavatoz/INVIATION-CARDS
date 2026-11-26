@@ -351,6 +351,7 @@ model Media {
 enum GuestSide {
   BRIDE
   GROOM
+  COMMON
 }
 
 model GuestRegistration {
